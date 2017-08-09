@@ -1,0 +1,15 @@
+CreateNamedPipeA
+CreatePipe
+CreateFileA
+WriteFile
+ReadFile
+GetOverlappedResult
+CreateProcessA
+TerminateProcess
+CreateEventA
+GetTickCount
+GetLastError
+CloseHandle
+WaitForMultipleObjects
+Wow64DisableWow64FsRedirection
+GetFileSizeEx

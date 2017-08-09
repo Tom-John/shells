@@ -1,0 +1,10 @@
+socket
+connect
+send
+recv
+closesocket
+ioctlsocket
+WSAEventSelect
+WSAEnumNetworkEvents
+WSACreateEvent
+WSAStartup

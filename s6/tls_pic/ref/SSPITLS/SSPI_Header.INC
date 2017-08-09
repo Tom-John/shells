@@ -1,0 +1,22 @@
+
+' Declarations for using SSPITLS.dll
+
+DECLARE FUNCTION TLSInitz         LIB "SSPITLS.dll" ALIAS "TLSInitz"         ( BYREF zServerName AS ASCIIZ, TCPport AS LONG, dwProtocol AS DWORD, fVerbose AS LONG, BYREF zDebug AS ASCIIZ ) AS DWORD
+DECLARE FUNCTION TLSConnect       LIB "SSPITLS.dll" ALIAS "TLSConnect"       ( BYVAL pIn AS DWORD, pBuff AS DWORD, BufLen AS LONG ) AS LONG           
+DECLARE FUNCTION TLSClose         LIB "SSPITLS.dll" ALIAS "TLSClose"         ( BYVAL pIn AS DWORD ) AS LONG 
+DECLARE FUNCTION TLSEncryptSendz  LIB "SSPITLS.dll" ALIAS "TLSEncryptSendz"  ( BYVAL pIn AS DWORD, BYREF zBuffer AS ASCIIZ ) AS LONG   
+DECLARE FUNCTION TLSReadDecryptz  LIB "SSPITLS.dll" ALIAS "TLSReadDecryptz"  ( BYVAL pIn AS DWORD, BYREF zBuffer AS ASCIIZ ) AS LONG 
+DECLARE FUNCTION TLSGetLastErrorz LIB "SSPITLS.dll" ALIAS "TLSGetLastErrorz" ( BYVAL pIn AS DWORD, BYREF zBuffer AS ASCIIZ ) AS LONG
+          
+DECLARE FUNCTION TLSInit          LIB "SSPITLS.dll" ALIAS "TLSInit"          ( sServerName AS STRING, TCPport AS LONG, dwProtocol AS DWORD, fVerbose AS LONG, sDebug AS STRING ) AS DWORD
+DECLARE FUNCTION TLSEncryptSend   LIB "SSPITLS.dll" ALIAS "TLSEncryptSend"   ( BYVAL pIn AS DWORD, sBuffer AS STRING ) AS LONG   
+DECLARE FUNCTION TLSReadDecrypt   LIB "SSPITLS.dll" ALIAS "TLSReadDecrypt"   ( BYVAL pIn AS DWORD, sBuffer AS STRING ) AS LONG 
+DECLARE FUNCTION TLSGetLastError  LIB "SSPITLS.dll" ALIAS "TLSGetLastError"  ( BYVAL pIn AS DWORD, sBuffer AS STRING ) AS LONG
+  
+          
+%SP_DEFAULT    = 0
+%SP_PROT_PCT1  = 3
+%SP_PROT_SSL2  = 12
+%SP_PROT_SSL3  = 48
+%SP_PROT_TLS1  = 192
+

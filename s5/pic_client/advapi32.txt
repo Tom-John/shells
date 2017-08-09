@@ -1,0 +1,3 @@
+CryptAcquireContextA
+CryptGenRandom
+CryptReleaseContext
