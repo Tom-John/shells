@@ -56,16 +56,18 @@ struc pushad_t
 endstruc
     
 %define SPECK_RNDS    27
+%define N              8
+%define K             16  
 ; *****************************************
 ; Light MAC parameters based on SPECK64-128
 ;
 ; N = 64-bits
 ; K = 128-bits
 ;
-%define COUNTER_LENGTH 4  ; should be <= N/2
-%define BLOCK_LENGTH   8  ; equal to N
-%define TAG_LENGTH     8  ; >= 64-bits && <= N
-%define BC_KEY_LENGTH 16  ; K
+%define COUNTER_LENGTH N/2  ; should be <= N/2
+%define BLOCK_LENGTH   N  ; equal to N
+%define TAG_LENGTH     N  ; >= 64-bits && <= N
+%define BC_KEY_LENGTH  K  ; K
 
 %define ENCRYPT_BLK speck64_encryptxx
 %define GET_MAC lightmac_tagx
