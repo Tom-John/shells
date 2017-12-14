@@ -97,7 +97,7 @@ void chacha(void *state)
     
     uint16_t idx16[8]=
     { 0xC840, 0xD951, 0xEA62, 0xFB73,    // column index
-      0xFA50, 0xCB61, 0xD872, 0xE943 };  // diagnonal index
+      0xFA50, 0xCB61, 0xD872, 0xE943 };  // diagonal index
     
     for (i=0; i<8; i++) {
       idx = idx16[i];
@@ -131,7 +131,7 @@ void norx(void *state)
     
     uint16_t idx16[8]=
     { 0xC840, 0xD951, 0xEA62, 0xFB73,    // column index
-      0xFA50, 0xCB61, 0xD872, 0xE943 };  // diagnonal index
+      0xFA50, 0xCB61, 0xD872, 0xE943 };  // diagonal index
     
     for (i=0; i<8; i++) {
       idx = idx16[i];
@@ -172,7 +172,7 @@ void cube(void *state)
 }
 
 void chaskey(void *state) {
-  uint32_t *s=(uint32_t*)state;
+    uint32_t *s=(uint32_t*)state;
 
     s[0] += s[1]; 
     s[1]=ROTL32(s[1], 5); 

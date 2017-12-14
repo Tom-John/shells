@@ -70,7 +70,7 @@ DWORD MyGetLastError(VOID)
 
 /**F*********************************************
  *
- * entrypoint of PIC
+ * entry point of PIC
  *
  ************************************************/
 #ifdef PIC

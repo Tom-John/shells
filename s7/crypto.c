@@ -178,7 +178,7 @@ int encrypt(
       // encrypt counter
       ENCRYPT_BLK(ctx->e_key, strm);
       // xor 1 block or whatever remaining
-      r=(len > BLOCK_LENGTH) ? BLOCK_LENGTH : len;
+      r = MIN(len, BLOCK_LENGTH);
       // xor message with ciphertext stream
       for (i=0; i<r; i++) {
         msg[i] ^= strm[i];

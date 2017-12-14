@@ -51,7 +51,7 @@
 
 #else
 
-  #include <unistd.h>
+#include <unistd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -753,6 +753,7 @@ char *strcrypt(cfg_opts_t* p, void *crypt) {
     return buf;
 }
 
+/*
 void save_cfg(cfg_opts_t* p) {
     FILE *out = fopen("cfg.dat", "wb");
     
@@ -773,7 +774,7 @@ void save_cfg(cfg_opts_t* p) {
       xstrerror("fopen");
     }
 }
-
+*/
 void bin2hex (cfg_opts_t* p, const char *desc, void* buf, int last)
 {
     size_t   i;
