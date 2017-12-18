@@ -76,7 +76,7 @@ struc sc_prop
   efd   resd 1
   len   resd 1
   evt   resd 1  
-  evts  resd 1
+  evts  resb epoll_event_size
   buf   resb BUFSIZ
   h     resd 1     
 endstruc
