@@ -69,8 +69,8 @@ int main(void) {
   
   uint8_t rnd[64];
   
-  if (randomx(rnd, sizeof(rnd))) {
-    bin2hex("random", rnd, sizeof(rnd));
-  }
+  randomx(rnd, sizeof(rnd)); 
+  bin2hex("random", rnd, sizeof(rnd));
+  
   return 0;
 }
