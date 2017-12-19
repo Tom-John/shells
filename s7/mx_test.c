@@ -1,6 +1,7 @@
 
 // test unit for mx.asm
-// requires openssl
+// requires MPIR
+// http://mpir.org/downloads.html
 
 #include <stdio.h>
 #include <string.h>
@@ -109,8 +110,8 @@ void dh_asm (uint32_t numlen, void *p, void *g, void *x, void *y)
   
 void dh (char modp[])
 {
-  BIGNUM *p, *g, *x, *y, *A, *B, *s1, *s2;
-  BN_CTX *ctx;
+  BIGNUM   *p, *g, *x, *y, *A, *B, *s1, *s2;
+  BN_CTX   *ctx;
   uint32_t maxbits;
   
   // initialize context
