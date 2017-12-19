@@ -175,7 +175,7 @@ cls_pipes:
       push   '/bin'
       mov    ebx, esp
       int    0x80
-c_con:    
+opn_con:    
       ; close(p.in[0]);
       push   SYS_close
       pop    eax

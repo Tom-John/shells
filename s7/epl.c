@@ -86,7 +86,7 @@ void main(int argc, char *argv[])
       sa.sin_port        = htons(atoi(argv[2]));
       sa.sin_addr.s_addr = inet_addr(argv[1]);
 
-      #ifdef CONNECT
+      #ifndef BIND
         // attempt connection to remote host
         connect(s, (struct sockaddr*)&sa, sizeof(sa));
       #else
