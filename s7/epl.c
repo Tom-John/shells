@@ -47,7 +47,8 @@
 void main(int argc, char *argv[])
 {
     struct sockaddr_in sa;
-    int                i, r, s, len, efd, evt, pid, fd, h[2], in[2], out[2];
+    int                i, r, w, s, len, efd, evt, 
+    int                pid, fd, in[2], out[2];
     char               buf[BUFSIZ];
     struct epoll_event evts[1];
 
@@ -94,52 +95,55 @@ void main(int argc, char *argv[])
         r = accept(s, 0, 0);
       #endif
       
-      if ((efd = epoll_create1(0)) > 0)
-      {
-        h[0] = s;      // assign socket to peer
-        h[1] = out[0]; // assign read end for stdout/stderr
+      efd = epoll_create1(0);
+ 
+      // add 2 descriptors to monitor
+      // level triggered
+      for (i=0; i<2; i++) {
+        fd = (i==0) ? s : out[0];
+        evts[0].data.fd = fd;
+        evts[0].events  = EPOLLIN;
         
-        // add 2 descriptors to monitor
-        // level triggered
-        for (i=0; i<2; i++) {
-          evts[0].data.fd = h[i];
-          evts[0].events  = EPOLLIN;
-          
-          epoll_ctl(efd, EPOLL_CTL_ADD, h[i], &evts[0]);
-        }
-          
-        // now loop until user exits or some other error
-        for (;;)
-        {
-          r = epoll_wait(efd, evts, 1, -1);
-                    
-          if (r <= 0) {
-            break;
-          }
-           
-          evt = evts[0].events;
-          fd  = evts[0].data.fd;
-          
-          if (!(evt & EPOLLIN)) break;
-
-          if (fd == s) {
-            // receive incoming data
-            len=read(s, buf, BUFSIZ);                          
-            // write to stdin of child process
-            write(in[1], buf, len);
-          } else {
-            // read from stdout/stderr
-            len = read(out[0], buf, BUFSIZ);
-            // send to remote peer
-            write(s, buf, len);
-          }         
-        }
-        // remove 2 descriptors 
-        for (i=0; i<2; i++) {
-          epoll_ctl(efd, EPOLL_CTL_DEL, h[i], NULL);
-        }            
-        close(efd);
+        epoll_ctl(efd, EPOLL_CTL_ADD, fd, &evts[0]);
       }
+          
+      // now loop until user exits or some other error
+      for (;;)
+      {
+        r = epoll_wait(efd, evts, 1, -1);
+                  
+        // error? bail out           
+        if (r <= 0) {
+          break;
+        }
+         
+        evt = evts[0].events;
+        fd  = evts[0].data.fd;
+        
+        // not input? bail out
+        if (!(evt & EPOLLIN)) break;
+
+        // default is to read from stdout
+        r = out[0];
+        w = s;
+        
+        // if socket, read that instead
+        if (fd==s) {
+          r = s;
+          w = in[1];
+        }
+        // read from socket or stdout        
+        len=read(r_in, buf, BUFSIZ);
+        // write to socket or stdin        
+        write(w_out, buf, len);        
+      }
+      // remove 2 descriptors 
+      for (i=0; i<2; i++) {
+        epoll_ctl(efd, EPOLL_CTL_DEL, 
+           i==0 ? s : out[0], NULL);
+      }            
+      close(efd);
+
       kill(pid, SIGCHLD);
       shutdown(s, SHUT_RDWR);      
       close(s);
