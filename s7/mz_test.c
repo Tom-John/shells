@@ -192,10 +192,10 @@ void dh (char modp[])
       printf ("\n\nKey exchange failed\n");
     }
     
-    mpz_export(px, &countp, -1, 1, 0, 0, p);
-    mpz_export(gx, &countp, -1, 1, 0, 0, g);
-    mpz_export(xx, &countp, -1, 1, 0, 0, x);
-    mpz_export(yx, &countp, -1, 1, 0, 0, y);
+    mpz_export(px, NULL, -1, 1, 0, 0, p);
+    mpz_export(gx, NULL, -1, 1, 0, 0, g);
+    mpz_export(xx, NULL, -1, 1, 0, 0, x);
+    mpz_export(yx, NULL, -1, 1, 0, 0, y);
     
     // call the assembler function
     dh_asm (mpz_sizeinbase(p, 2), px, gx, xx, yx);
