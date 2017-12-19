@@ -80,11 +80,16 @@ struc sc_prop
   buf   resb BUFSIZ
   h     resd 1     
 endstruc
-      
+ 
+    %ifndef BIN
+      global main
+      global _main
+    %endif     
          
     bits 32
     
-start:    
+main:    
+_main:    
       pushad
       sub    esp, sc_prop_size
       mov    ebp, esp
