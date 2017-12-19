@@ -44,10 +44,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "sph"
-
-#define HTONS(x) ((((uint16_t)(x) & 0xff00) >> 8) | (((uint16_t)(x) & 0x00ff) << 8))
-
 void main(int argc, char *argv[])
 {
     struct sockaddr_in sa;
@@ -86,7 +82,7 @@ void main(int argc, char *argv[])
       s = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
       
       sa.sin_family      = AF_INET;
-      sa.sin_port        = HTONS(atoi(argv[2]));
+      sa.sin_port        = htons(atoi(argv[2]));
       sa.sin_addr.s_addr = inet_addr(argv[1]);
 
       #ifdef CONNECT
@@ -100,7 +96,7 @@ void main(int argc, char *argv[])
       
       if ((efd = epoll_create1, 0)) > 0)
       {
-        h[0] = s;    // assign socket to peer
+        h[0] = s;      // assign socket to peer
         h[1] = out[0]; // assign read end for stdout/stderr
         
         // add 2 descriptors to monitor
