@@ -51,7 +51,6 @@
 ;
 randomx:
 _randomx:
-int3
     pushad    
     xor    esi, esi          ; u = 0    
     ; fd = open("/dev/urandom", O_RDONLY);
@@ -66,8 +65,7 @@ open_rnd:
     int    0x80
     ; if (fd >= 0)
     jl     exit_rnd          ; failed if fd < 0
-    xchg   eax, ebx          ; ebx = fd
-    
+    xchg   eax, ebx          ; ebx = fd    
     ; for (u=0; u<outlen;)
     ; esi already set to zero
 read_rnd:
@@ -77,7 +75,7 @@ read_rnd:
     ; len = read(fd, p + u, outlen - u);
     push   SYS_read
     pop    eax
-    mov    ecx, [esp+32+4]   ; ecx = &out[u]
+    mov    ecx, [esp+32+4]   ; ecx = out + u
     add    ecx, esi          ; 
     mov    edx, [esp+32+8]   ; edx = outlen - u   
     sub    edx, esi          ; 
