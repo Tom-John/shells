@@ -130,7 +130,6 @@ void dh (char modp[])
     mpz_t           p, g, x, y, A, B, s1, s2;
     uint32_t        maxbits;
     uint8_t         px[256], gx[256], xx[256], yx[256];
-    size_t          countp;
     gmp_randstate_t state;
     
     memset(px, 0, sizeof(px));
