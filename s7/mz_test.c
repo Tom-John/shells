@@ -90,18 +90,13 @@ void dh_asm (uint32_t numlen, void *p, void *g, void *x, void *y)
   // then private keys
   memcpy (dh.x, x, len);
   memcpy (dh.y, y, len);
-
-  //dump_bn("\nx = ", dh.x, len);
-  //dump_bn("\ny = ", dh.y, len);
-      
+ 
   // Alice obtains A = g ^ x mod p
   modexp (dh.maxbytes, dh.g, dh.x, dh.p, dh.A);
-  //dump_bn("\nA = ", dh.A, len);
-  
+
   // Bob obtains B = g ^ y mod p
   modexp (dh.maxbytes, dh.g, dh.y, dh.p, dh.B);
-  //dump_bn("\nB = ", dh.B, len);
-    
+
   // *************************************
   // Bob and Alice exchange A and B values
   // *************************************
@@ -201,9 +196,6 @@ void dh (char modp[])
   mpz_export(gx, &countp, -1, 1, 0, 0, g);
   mpz_export(xx, &countp, -1, 1, 0, 0, x);
   mpz_export(yx, &countp, -1, 1, 0, 0, y);
-  
-  //dump_bn("\np = ", px, mpz_sizeinbase(p, 2)/8);
-  //dump_bn("\ng = ", gx, mpz_sizeinbase(g, 2)/8);
   
   // call the assembler function
   dh_asm (mpz_sizeinbase(p, 2), px, gx, xx, yx);

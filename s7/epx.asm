@@ -80,6 +80,7 @@ struc sc_prop
   buf   resb BUFSIZ
   h     resd 1     
 endstruc
+      
          
     bits 32
     
@@ -300,4 +301,8 @@ exit:
       add    esp, sc_prop_size
       popad
       ret    
+      
+%include "mx.asm"
+%include "rnx.asm"
+%include "cpx.asm"
       
