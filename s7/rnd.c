@@ -29,23 +29,18 @@ void bin2hex(const char *s, uint8_t x[], int len) {
 #ifdef NIX
 int random(void *out, size_t outlen)
 {
-    int     f;
+    int     fd;
     ssize_t  u=0, len;
     uint8_t *p=(uint8_t*)out;
     
-    f = open("/dev/urandom", O_RDONLY);
-    if (f >= 0) {
+    fd = open("/dev/urandom", O_RDONLY);
+    if (fd >= 0) {
       for (u=0; u<outlen;) {
-        len = read(f, p + u, outlen - u);
-        if (len<0) {
-          if (errno == EINTR) {
-            continue;
-          }
-          break;
-        }
+        len = read(fd, p + u, outlen - u);
+        if (len<0) break;        
         u += (size_t)len;
       }
-      close(f);
+      close(fd);
     }
     return u==outlen;
 }
