@@ -27,6 +27,8 @@ void bin2hex(const char *s, uint8_t x[], int len) {
 }
 
 #ifdef NIX
+int randomx(void *out, size_t outlen);
+
 int random(void *out, size_t outlen)
 {
     int     fd;
@@ -67,7 +69,7 @@ int main(void) {
   
   uint8_t rnd[64];
   
-  if (random(rnd, sizeof(rnd))) {
+  if (randomx(rnd, sizeof(rnd))) {
     bin2hex("random", rnd, sizeof(rnd));
   }
   return 0;
