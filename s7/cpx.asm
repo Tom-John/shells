@@ -195,10 +195,16 @@ lmx_l3:
       popad                  ; restore registers
       ret
  
-encryptx:
-_encryptx:
-      or      eax, -1        ; set return value to -1
+encrypt:
+_encrypt:
+      push    -1
+      pop     eax            ; set return value to -1
       pushad
+      lea     ebx, [ebp+buf]
+      mov     edx, [ebp+len]
+      setnc   cl
+      movzx   ecx, cl
+      
       lea     esi, [esp+32+4]
       lodsd
       xchg    eax, ebp       ; ebp = ctx
@@ -207,7 +213,8 @@ _encryptx:
       lodsd
       xchg    eax, edx       ; edx = msglen 
       lodsd
-      xchg    eax, ecx       ; ecx = enc       
+      xchg    eax, ecx       ; ecx = enc  
+      
       pushad                 ; allocate 8-bytes for tag+strm
       mov     edi, esp       ; edi = tag
       ; if (enc) {

