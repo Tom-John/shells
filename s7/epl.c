@@ -47,7 +47,7 @@
 void main(int argc, char *argv[])
 {
     struct sockaddr_in sa;
-    int                i, r, w, s, len, efd, evt, 
+    int                i, r, w, s, len, efd, evt; 
     int                pid, fd, in[2], out[2];
     char               buf[BUFSIZ];
     struct epoll_event evts[1];
@@ -133,9 +133,9 @@ void main(int argc, char *argv[])
           w = in[1];
         }
         // read from socket or stdout        
-        len=read(r_in, buf, BUFSIZ);
+        len=read(r, buf, BUFSIZ);
         // write to socket or stdin        
-        write(w_out, buf, len);        
+        write(w, buf, len);        
       }
       // remove 2 descriptors 
       for (i=0; i<2; i++) {
