@@ -449,7 +449,7 @@ exit_recv:
    
 ; ***********************************
 ;
-; perform RSA key exchange
+; perform Diffie-Hellman-Merkle key exchange
 ;
 ; ***********************************    
 key_xchg:

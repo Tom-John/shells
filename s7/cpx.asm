@@ -43,18 +43,6 @@
       global _encryptx
     %endif
     
-struc pushad_t
-  _edi resd 1
-  _esi resd 1
-  _ebp resd 1
-  _esp resd 1
-  _ebx resd 1
-  _edx resd 1
-  _ecx resd 1
-  _eax resd 1
-  .size:
-endstruc
-    
 %define SPECK_RNDS    27
 %define N              8
 %define K             16  
