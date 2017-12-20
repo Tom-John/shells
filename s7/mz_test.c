@@ -71,7 +71,7 @@ void bin2hex(const char *s, uint8_t x[], int len) {
     }
     putchar('\n');
 }
-
+/**
 #if defined(__Linux__)
 #define NIX
 #include <sys/types.h>
@@ -122,7 +122,7 @@ int random(void *out, size_t outlen)
     return r;
 }
 
-#endif
+#endif*/
 
 void dh_asm (uint32_t numlen, void *p, void *g, void *x, void *y)
 {
@@ -247,6 +247,8 @@ void dh (char modp[])
     mpz_export(gx, NULL, -1, 1, 0, 0, g);
     mpz_export(xx, NULL, -1, 1, 0, 0, x);
     mpz_export(yx, NULL, -1, 1, 0, 0, y);
+    
+    bin2hex("p", px, mpz_sizeinbase(p, 2)/8);
     
     // call the assembler function
     dh_asm (mpz_sizeinbase(p, 2), px, gx, xx, yx);
