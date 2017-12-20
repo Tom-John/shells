@@ -47,6 +47,9 @@ _modexp:
 modexp:
     pushad
 
+    xor    ecx, ecx
+    mov    cl, XCHG_KEY_LEN
+    
     ;lea     esi, [esp+32+ 4]
     ;lodsd
     ;cdq
