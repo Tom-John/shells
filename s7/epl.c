@@ -50,7 +50,7 @@ void main(int argc, char *argv[])
     int                i, r, w, s, len, efd, evt; 
     int                pid, fd, in[2], out[2];
     char               buf[BUFSIZ];
-    struct epoll_event evts[1];
+    struct epoll_event evts;
 
     // create pipes for redirection of stdin/stdout/stderr
     pipe(in);
@@ -101,24 +101,24 @@ void main(int argc, char *argv[])
       // level triggered
       for (i=0; i<2; i++) {
         fd = (i==0) ? s : out[0];
-        evts[0].data.fd = fd;
-        evts[0].events  = EPOLLIN;
+        evts.data.fd = fd;
+        evts.events  = EPOLLIN;
         
-        epoll_ctl(efd, EPOLL_CTL_ADD, fd, &evts[0]);
+        epoll_ctl(efd, EPOLL_CTL_ADD, fd, &evts);
       }
           
       // now loop until user exits or some other error
       for (;;)
       {
-        r = epoll_wait(efd, evts, 1, -1);
+        r = epoll_wait(efd, &evts, 1, -1);
                   
         // error? bail out           
         if (r <= 0) {
           break;
         }
          
-        evt = evts[0].events;
-        fd  = evts[0].data.fd;
+        evt = evts.events;
+        fd  = evts.data.fd;
         
         // not input? bail out
         if (!(evt & EPOLLIN)) break;
