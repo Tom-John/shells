@@ -83,7 +83,7 @@ modp_group:
 set_m:
     pop    ebp    
     xor    ecx, ecx
-    mov    cl, set_mod - modp_group
+    mov    cx, set_m - modp_group
     push   1
     pop    edx               ; edx = x=1
     db     0b0h              ; mov al, 0x60 to mask pushad
