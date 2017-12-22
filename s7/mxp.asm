@@ -89,8 +89,8 @@ set_m:
     db     0b0h              ; mov al, 0x60 to mask pushad
 mulmod:
     pushad                   ; save registers
-; cf=1 : r = mulmod (r, t, m);
-; cf=0 : t = mulmod (t, t, m);
+    ; cf=1 : r = mulmod (r, t, m);
+    ; cf=0 : t = mulmod (t, t, m);
     push   edi               ; save edi
     ; r=x
     sub    esp, ecx          ; create space for r and assign x
@@ -172,7 +172,7 @@ xm_l2:
     popfd
     cmc
     jnc     xm_l2
-    
+
     inc     edx
     dec     eax
     jns     xm_l1
