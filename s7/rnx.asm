@@ -45,12 +45,13 @@
 
 %define EINTR                 4
 
-; void randomx(void *out, size_t outlen);
+; void random(void *out, size_t outlen);
 ;
+; IN:  edi = out, edx = outlen 
 ; OUT: ZF=1 on success, else ZF=0
 ;
-randomx:
-_randomx:
+random:
+_random:
       pushad    
       xor    esi, esi          ; u = 0    
       ; fd = open("/dev/urandom", O_RDONLY);
@@ -70,14 +71,14 @@ open_rnd:
       ; esi already set to zero
 read_rnd:
       ; u < outlen
-      cmp    esi, [esp+32+8]
+      cmp    esi, [esp+_edx]
       jae    close_rnd
       ; len = read(fd, p + u, outlen - u);
       push   SYS_read
       pop    eax
-      mov    ecx, [esp+32+4]   ; ecx = out + u
+      mov    ecx, [esp+_edi]   ; ecx = out + u
       add    ecx, esi          ; 
-      mov    edx, [esp+32+8]   ; edx = outlen - u   
+      mov    edx, [esp+_edx]   ; edx = outlen - u   
       sub    edx, esi          ; 
       int    0x80
       ; if (len < 0) break;

@@ -80,8 +80,6 @@
 
 %define SHUT_RDWR     1
 
-%define XCHG_KEY_LEN 256 ; 2048-bits
-
 struc epoll_event
   events resd 1
   data   resd 1
@@ -242,10 +240,8 @@ epx_con:
       pop    eax
       int    0x80      
 
-      ; *****************************************
-      ; perform key exchange
-      ;
-      ; *****************************************
+      ; attempt to secure the connection
+      call   key_xchg
       
       ; efd = epoll_create1(0);
       mov    eax, SYS_epoll_create1
@@ -525,6 +521,44 @@ exit_recv:
       popad
       ret
    
+; *****************************************
+; perform key exchange
+;
+; *****************************************
+key_xchg:
+      pushad      
+      xor    ecx, ecx
+      mul    ecx
+      mov    ch, 2        ; 512 bytes should be enough
+      sub    esp, ecx
+      mov    edi, esp
+      pushad
+      rep    stosb
+      popad
+      mov    byte[esp], 2 ; set g
+      
+      ; generate 512-bits x
+      mov    dh, 1
+      call   random
+      
+      ; Alice obtains A = g ^ x mod p 
+      call   modexp
+      
+      ; send A to Bob
+      call   send_pkt
+      
+      ; receive B from Bob
+      call   recv_pkt
+      
+      ; Alice computes s = B ^ x mod p
+      call   modexp
+      
+      ; release stack
+      mov    ch, 2
+      add    esp, ecx
+      popad
+      ret
+      
 %include "mxp.asm"
 %include "rnx.asm"
 %include "cpx.asm"

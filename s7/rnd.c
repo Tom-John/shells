@@ -36,6 +36,7 @@ int random(void *out, size_t outlen)
     uint8_t *p=(uint8_t*)out;
     
     fd = open("/dev/urandom", O_RDONLY);
+    
     if (fd >= 0) {
       for (u=0; u<outlen;) {
         len = read(fd, p + u, outlen - u);
