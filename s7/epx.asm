@@ -272,6 +272,7 @@ poll_init:
       jc     poll_init      
       ; now loop until user exits or some other error      
 poll_wait:
+int3
       ; epoll_wait(efd, &evts, 1, -1);
       mov    ebx, [ebp+efd]
       xor    eax, eax
@@ -407,6 +408,7 @@ s_pkt:
       push   ecx              ; len   = buflen - sum
       lea    ecx, [esi+edi] 
       push   ecx              ; buf   = &buf[sum]
+      push   dword[ebp+s]     ; socket
       mov    ecx, esp         ; ecx   = &args
       
       push   SYS_SEND
@@ -414,7 +416,7 @@ s_pkt:
       mov    al, SYS_socketcall      
       int    0x80
       
-      add    esp, 3*4         ; fix-up stack
+      add    esp, 4*4         ; fix-up stack
       
       test   eax, eax         ; if (len <= 0) return -1; 
       jle    exit_spkt
@@ -432,13 +434,18 @@ exit_spkt:
 ; ***********************************      
 spp_send:
       pushad
-      ; 1. send length (including MAC)
-      add    edx, 8     ; add MAC length
+      ; 1. send length (including MAC)      
+      push   edx
+      mov    edi, esp
+      add    [edi], 8   ; add MAC length
       call   send_pkt
+      pop    ecx
       jle    exit_send
       
       ; 2. send the data
-      call   send_pkt      
+      lea    edi, [ebp+evts]
+      call   send_pkt
+      test   eax, eax      
 exit_send:
       mov    [esp+_eax], eax      
       popad
@@ -466,6 +473,7 @@ r_pkt:
       push   ecx              ; len   = buflen - sum
       lea    ecx, [esi+edi] 
       push   ecx              ; buf   = &buf[sum]
+      push   dword[ebp+s]     ; socket      
       mov    ecx, esp         ; ecx   = &args
       
       push   SYS_RECV
@@ -473,7 +481,7 @@ r_pkt:
       mov    al, SYS_socketcall      
       int    0x80
       
-      add    esp, 3*4         ; fix-up stack
+      add    esp, 4*4         ; fix-up stack
       
       test   eax, eax         ; if (len <= 0) return -1; 
       jle    exit_rpkt
@@ -507,6 +515,7 @@ spp_recv:
       ; 2. receive the data
       mov    edx, [edi]        ; edx = buflen      
       call   recv_pkt
+      test   eax, eax
 exit_recv:
       mov    [esp+_eax], eax   ; return length or -1   
       popad
