@@ -104,7 +104,7 @@ void main(int argc, char *argv[])
       sa.sin_port        = HTONS(atoi(argv[2]));
       sa.sin_addr.s_addr = inet_addr(argv[1]);
 
-      #ifdef CONNECT
+      #ifndef BIND
         // attempt connection to remote host
         syscall(SYS_connect, p.c.s, (struct sockaddr*)&sa, sizeof(sa));
       #else
