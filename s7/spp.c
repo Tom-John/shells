@@ -106,10 +106,12 @@ int spp_recv (spp_ctx *c, spp_buf *out)
     // 1. receive the length first
     len=recv_pkt (c, &out->len.w, sizeof(spp_len));
     
+    //printf("received length %i\nbuffer length %i", len, out->len.buflen);
     if (len>0) {
       // 2. receive the data
       len=recv_pkt (c, &out->data.b, out->len.buflen);
       if (len>0) {
+		//printf("received data %i\n", len);  
         out->data.b[len] = 0;
         out->len.buflen  = len;
       }

@@ -29,7 +29,7 @@
   
 #include "crypto.h"
 
-#ifdef TEST
+//#ifdef TEST
 void bin2hex(
     char *s, 
     uint8_t *buf, 
@@ -41,7 +41,7 @@ void bin2hex(
     printf ("%02x", buf[i]);
   }
 }
-#endif
+//#endif
 
 void speck64_encrypt(
     const void *key,
@@ -165,6 +165,9 @@ int encrypt(
       // compare with what we received
       // if not equal, return error
       if (memcmp(mac, &msg[msglen], TAG_LENGTH)) {
+		//printf("invalid MAC\n");
+		//bin2hex("mac received", &msg[msglen], TAG_LENGTH);  
+		//bin2hex("mac i have", mac,TAG_LENGTH);  
         return -1;  // invalid mac
       }
     }

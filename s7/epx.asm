@@ -272,7 +272,6 @@ poll_init:
       jc     poll_init      
       ; now loop until user exits or some other error      
 poll_wait:
-int3
       ; epoll_wait(efd, &evts, 1, -1);
       mov    ebx, [ebp+efd]
       xor    eax, eax
@@ -394,7 +393,8 @@ send_pkt:
       pushad
       ; 1. wrap
       xor    ecx, ecx         ; ecx = ENCRYPT
-      call   encrypt      
+      call   encrypt
+      xchg   eax, edx      
       ; 2. send
       xor    esi, esi         ; sum = 0
 s_pkt:
@@ -424,6 +424,7 @@ s_pkt:
       add    esi, eax         ; sum += len
       jmp    s_pkt
 exit_spkt:
+      test   esi, esi
       mov    [esp+_eax], esi  ; return sum    
       popad
       ret
@@ -434,12 +435,15 @@ exit_spkt:
 ; ***********************************      
 spp_send:
       pushad
-      ; 1. send length (including MAC)      
-      add    edx, 8
-      push   edx
+      ; 1. send length (including MAC)
+      sub    esp, 4 + 8
       mov    edi, esp
+      mov    dword[edi], edx
+      add    dword[edi], 8
+      mov    dl, 4       
       call   send_pkt
-      pop    ecx
+      lea    esp, [esp+4+8]
+      mov    edx, [esp+_edx]
       jle    exit_send
       
       ; 2. send the data
