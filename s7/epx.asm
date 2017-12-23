@@ -159,14 +159,14 @@ c_pipe:
       ; dup2 (out[1], STDERR_FILENO)      
       ; dup2 (out[1], STDOUT_FILENO)
       ; dup2 (in[0], STDIN_FILENO)   
-      mov    cl, 3                ; ecx = STDERR_FILENO + 1
+      mov    cl, 2                ; ecx = STDERR_FILENO
       mov    ebx, [ebp+p_out+4]   ; ebx = out[1]
 c_dup:
-      dec    ecx               ; becomes STDERR_FILENO, STDOUT_FILENO, then STDIN_FILENO
       push   SYS_dup2
       pop    eax
       int    0x80
-      cmovp  ebx, [ebp+p_in]   ; replace stdin with in[0] for last call
+      dec    ecx               ; becomes STDOUT_FILENO, then STDIN_FILENO      
+      cmove  ebx, [ebp+p_in]   ; replace stdin with in[0] for last call
       jnz    c_dup  
   
       ; close pipe handles in this order..
@@ -278,12 +278,12 @@ poll_wait:
       jle    cls_sck
       
       mov    esi, edi
-      lodsd      
+      lodsd                    ; eax = evt.events
       ; if (!(evt & EPOLLIN)) break;
       test   al, EPOLLIN
       jnz    cls_sck
       
-      lodsd
+      lodsd                   ; eax = evt.data.fd 
       mov    ebx, [ebp+p_out] ; ebx = out[0]
       mov    esi, [ebp+s]     ; esi = s
       
