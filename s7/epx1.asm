@@ -80,19 +80,11 @@
 
 %define SHUT_RDWR     1
 
-%define XCHG_KEY_LEN 256 ; 2048-bits
-
 struc epoll_event
   events resd 1
   data   resd 1
 endstruc
-
-struc crypto_ctx
-  ctr  resb  8     ; 64-bit counter + nonce
-  ekey resb 16     ; 128-bit encryption key
-  mkey resb 32     ; 256-bit mac key
-endstruc
-         
+      
 struc sc_prop
   p_in  resd 2
   p_out resd 2
@@ -102,7 +94,6 @@ struc sc_prop
   evts  resb epoll_event_size
   len   resd 1
   buf   resb BUFSIZ
-  ctx   resb crypto_ctx_size
 endstruc
  
 struc pushad_t
@@ -366,117 +357,4 @@ cls_efd:
       push   SYS_exit
       pop    eax 
       int    0x80     
-      
-; ***********************************
-;
-; send packet, fragmented if required
-;
-; ***********************************
-send_pkt:
-      pushad
-      ; 1. wrap
-      stc
-      call   encrypt      
-      ; 2. send
-c_send:
-      xor    eax, eax
-      push   eax
-      mov    al, BUFSIZ
-      push   eax
-      lea    ecx, [ebp+buf]
-      push   ecx
-      push   dword[ebp+s]
-      mov    ecx, esp      
-      push   SYS_SEND
-      pop    ebx
-      push   SYS_socketcall
-      pop    eax      
-      int    0x80
-      add    esp, 4*4
-      test   eax, eax
-      jle    exit_rpkt
-      add    ebp, eax
-      jmp    r_pkt         
-      jg     c_send      
-      popad
-      ret
-; ***********************************
-;
-; send data, encrypted if required
-;
-; ***********************************      
-spp_send:
-      pushad
-      ; 1. send length of data
-      call   send_pkt
-      jle    exit_send      
-      ; 2. send the data
-      call   send_pkt      
-exit_send      
-      popad
-      ret
-; ***********************************
-;
-; receive packet, fragmented if required
-;
-; ***********************************
-recv_pkt:
-      pushad     
-      ; 1. receive
-      mov    ecx, esp      
-r_pkt:
-      push   SYS_RECV
-      pop    ebx
-      push   SYS_socketcall
-      pop    eax      
-      int    0x80
-      add    esp, 4*4
-      test   eax, eax
-      jle    exit_rpkt
-      add    ebp, eax
-      jmp    r_pkt
-      ; 2. unwrap
-      clc
-      call   encrypt
-      test   eax, eax
-exit_rpkt:      
-      mov    [esp+_eax], eax
-      popad
-      ret
-; ***********************************
-;
-; receive data, decrypt if required
-;
-; ***********************************      
-spp_recv:
-      pushad
-      ; 1. receive the length
-      call   recv_pkt
-      jle    exit_recv      
-      ; 2. receive the data
-      call   recv_pkt
-exit_recv:      
-      popad
-      ret
-   
-; ***********************************
-;
-; perform Diffie-Hellman-Merkle key exchange
-;
-; ***********************************    
-key_xchg:
-      pushad
-      xor    ecx, ecx
-      mov    ch, 10h        ; we want 4096 bytes
-      sub    esp, ecx
-      mov    edi, esp
-      call   load_p
-load_p:
-      rep    movsb      
-      popad
-      ret
-      
-%include "mxp.asm"
-%include "rnx.asm"
-%include "cpx.asm"
-      
+     

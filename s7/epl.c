@@ -136,17 +136,17 @@ void main(int argc, char *argv[])
         len=read(r, buf, BUFSIZ);
         // write to socket or stdin        
         write(w, buf, len);        
-      }
-      // shutdown socket
-      shutdown(s, SHUT_RDWR);
-      
+      }      
       // remove 2 descriptors 
       for (i=0; i<2; i++) {
         fd = (i==0) ? s : out[0];
         epoll_ctl(efd, EPOLL_CTL_DEL, fd, NULL);
-        close(fd);
-      }            
+      }                  
       close(efd);
+      // shutdown socket
+      shutdown(s, SHUT_RDWR);
+      close(s);
+      // terminate parent      
       kill(pid, SIGCHLD);            
     }
     close(in[1]);
