@@ -106,6 +106,21 @@ typedef union bc_blk_t {
   uint32_t w[BLOCK_LENGTH/sizeof(uint32_t)];
 } bc_blk;
 
+typedef union _w32_t {
+  uint8_t b[4];
+  uint32_t w;	
+} w32_t;
+
+typedef union _w64_t {
+  uint8_t b[8];
+  uint32_t w[2];	
+} w64_t;
+
+typedef union _w128_t {
+  uint8_t b[16];
+  uint32_t w[4];	
+} w128_t;
+
 typedef struct crypto_ctx_t {
   uint8_t  e_ctr[BLOCK_LENGTH];        // block encryption counter
   uint8_t  e_key[BC_KEY_LENGTH];       // block encryption key  

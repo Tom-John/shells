@@ -203,7 +203,7 @@ void session(spp_ctx *c)
 {
     fd_set  fds;
     int     r, len;
-    spp_blk x;
+    spp_buf x;
     
     install_handler();
     
