@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
     bin2hex("mac key",   ctx.m_key, BC_KEY_LENGTH*2);
     bin2hex("expected result",    result, BLOCK_LENGTH+TAG_LENGTH);
     
-    len=encryptx(&ctx, buf, 
+    len=encrypt(&ctx, buf, 
         BLOCK_LENGTH, CRYPT_ENCRYPT);
     
     //lightmac_tag(&ctx, buf, BLOCK_LENGTH, tag);
@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
     memcpy(ctx.e_key, e_key, BC_KEY_LENGTH);
     memcpy(ctx.m_key, m_key, BC_KEY_LENGTH*2);
     
-    ret=encryptx(&ctx, buf, len, CRYPT_DECRYPT);
+    ret=encrypt(&ctx, buf, len, CRYPT_DECRYPT);
     
     if (ret>0) bin2hex("plaintext", buf, ret);
     

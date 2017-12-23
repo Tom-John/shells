@@ -131,6 +131,11 @@ _main:
       mov    cl, sc_prop_size
       sub    esp, ecx
       mov    edi, esp
+      ; memset(edi, 0, sc_prop_size)
+      pushad
+      xor    eax, eax
+      rep    stosb
+      popad
       mov    ebp, esp
       
       ; create read/write pipes

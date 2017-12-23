@@ -30,6 +30,7 @@
 #ifndef CRYPTO_H
 #define CRYPTO_H
 
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -74,6 +75,7 @@
 #define ROTR64(v, n) ROTL64(v, 64 - (n))
 
 #define XCHG(x, y, t) (t) = (x); (x) = (y); (y) = (t);
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 /*#if defined (__INTEL_COMPILER)
 #define SWAP32(x) _bswap(x)
