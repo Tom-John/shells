@@ -29,9 +29,6 @@
 
 ; -----------------------------------------------
 ; Modular Exponentiation in x86 assembly
-;
-; size: 138 bytes (including size of key)
-;
 ; -----------------------------------------------
 
   bits 32

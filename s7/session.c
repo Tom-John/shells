@@ -161,9 +161,9 @@ void session (spp_ctx *c)
         out.len.w = input.len;
         memcpy (out.data.b, input.buf, input.len);
         // remove carriage return if remote is NIX
-        //out.data.b[input.len-2] = '\n';
+        out.data.b[input.len-2] = '\n';
         out.data.b[input.len] = 0;
-        //out.len.w--;
+        out.len.w--;
         // send to cmd.exe on client
         spp_send(c, &out);
           

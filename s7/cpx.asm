@@ -29,11 +29,6 @@
 
 ; -----------------------------------------------
 ; LightMAC-SPECK64/128-CTR 
-;
-; size: 270 bytes
-;
-; global calls use cdecl convention
-;
 ; -----------------------------------------------
 
     bits 32
@@ -183,17 +178,15 @@ lmx_l3:
       popad                  ; restore registers
       ret
  
+; IN: ebp = global memory, edi = msg, ecx = enc flag, edx = msglen 
+; OUT: -1 or length of data encrypted/decrypted
 encrypt:
 _encrypt:
       push    -1
       pop     eax            ; set return value to -1
       pushad
       lea     ebp, [ebp+ctx] ; ebp crypto ctx
-      lea     ebx, [ebp+buf] ; ebx = msg
-      mov     edx, [ebp+len] ; edx = msglen
-      setnc   cl
-      movzx   ecx, cl        ; ecx = enc
-      
+      mov     ebx, edi       ; ebx = msg      
       pushad                 ; allocate 8-bytes for tag+strm
       mov     edi, esp       ; edi = tag
       ; if (enc) {
