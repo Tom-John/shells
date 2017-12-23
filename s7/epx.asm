@@ -435,9 +435,9 @@ exit_spkt:
 spp_send:
       pushad
       ; 1. send length (including MAC)      
+      add    edx, 8
       push   edx
       mov    edi, esp
-      add    [edi], 8   ; add MAC length
       call   send_pkt
       pop    ecx
       jle    exit_send
