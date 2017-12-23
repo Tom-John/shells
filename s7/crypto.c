@@ -29,7 +29,7 @@
   
 #include "crypto.h"
 
-//#ifdef TEST
+#ifdef TEST
 void bin2hex(
     char *s, 
     uint8_t *buf, 
@@ -41,7 +41,7 @@ void bin2hex(
     printf ("%02x", buf[i]);
   }
 }
-//#endif
+#endif
 
 void speck64_encrypt(
     const void *key,
@@ -67,8 +67,8 @@ void speck64_encrypt(
       k1 = (ROTR32(k1, 8) + k0) ^ i;
       k0 =  ROTL32(k0, 3) ^ k1;
       
-      XCHG(k3, k2, t);
-      XCHG(k3, k1, t);    
+      XCHG(k3, k2);
+      XCHG(k3, k1);    
     }
     // save result
     x->w[0] = x0; x->w[1] = x1;
@@ -165,9 +165,6 @@ int encrypt(
       // compare with what we received
       // if not equal, return error
       if (memcmp(mac, &msg[msglen], TAG_LENGTH)) {
-		//printf("invalid MAC\n");
-		//bin2hex("mac received", &msg[msglen], TAG_LENGTH);  
-		//bin2hex("mac i have", mac,TAG_LENGTH);  
         return -1;  // invalid mac
       }
     }
@@ -229,11 +226,9 @@ int main(int argc, char *argv[])
     len=encrypt(&ctx, buf, 
         BLOCK_LENGTH, CRYPT_ENCRYPT);
     
-    //lightmac_tag(&ctx, buf, BLOCK_LENGTH, tag);
-    //bin2hex("tag", tag, TAG_LENGTH);
-    
     e_equ=(memcmp(buf, result, BLOCK_LENGTH)==0);
-    m_equ=(memcmp(&buf[BLOCK_LENGTH], &result[BLOCK_LENGTH], BLOCK_LENGTH)==0);
+    m_equ=(memcmp(&buf[BLOCK_LENGTH], 
+        &result[BLOCK_LENGTH], BLOCK_LENGTH)==0);
     
     printf ("\nEncryption : %s", 
         e_equ ? "OK" : "FAILED");

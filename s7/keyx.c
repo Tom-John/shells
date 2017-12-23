@@ -1,4 +1,32 @@
+/**
+  Copyright © 2017 Odzhan. All Rights Reserved.
 
+  Redistribution and use in source and binary forms, with or without
+  modification, are permitted provided that the following conditions are
+  met:
+
+  1. Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+
+  2. Redistributions in binary form must reproduce the above copyright
+  notice, this list of conditions and the following disclaimer in the
+  documentation and/or other materials provided with the distribution.
+
+  3. The name of the author may not be used to endorse or promote products
+  derived from this software without specific prior written permission.
+
+  THIS SOFTWARE IS PROVIDED BY AUTHORS "AS IS" AND ANY EXPRESS OR
+  IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+  DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT,
+  INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+  SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+  HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+  STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  POSSIBILITY OF SUCH DAMAGE. */
+  
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -20,32 +48,13 @@ char OAKLEY_PRIME_MODP2048[]=
     "DE2BCBF6955817183995497CEA956AE515D2261898FA0510"
     "15728E5A8AACAA68FFFFFFFFFFFFFFFF";
     
-char *mpz_hex(mpz_t x)
-{
-    static char r[1024];
-    
-    mpz_get_str(r, 16, x);
-    return r;
-}
-
 void key_xchg (spp_ctx *c)
 {
-    mpz_t           p, g, x, y, A, B, s1, s2;
-    uint32_t        maxbits;
-    uint8_t         px[256], gx[256], xx[256], yx[256];
-    gmp_randstate_t state;
-    
-    memset(px, 0, sizeof(px));
-    memset(gx, 0, sizeof(gx));
-    memset(xx, 0, sizeof(xx));
-    memset(yx, 0, sizeof(yx));
-    
-    gmp_randinit_default(state);
+    mpz_t p, g, y, A, B, s;
     
     mpz_init(p);  mpz_init(g); 
-    mpz_init(x);  mpz_init(y);
     mpz_init(A);  mpz_init(B);
-    mpz_init(s1); mpz_init(s2);
+    mpz_init(y);  mpz_init(s);
 
     mpz_set_str (p, OAKLEY_PRIME_MODP2048, 16);
     mpz_set_str (g, "2", 16);
@@ -61,19 +70,12 @@ void key_xchg (spp_ctx *c)
     // send B to Alice
     
     // Bob computes session key
-    mpz_powm (s2, A, y, p);  
-    
-    mpz_export(px, NULL, -1, 1, 0, 0, p);
-    mpz_export(gx, NULL, -1, 1, 0, 0, g);
-    mpz_export(xx, NULL, -1, 1, 0, 0, x);
-    mpz_export(yx, NULL, -1, 1, 0, 0, y);  
+    mpz_powm (s, A, y, p);     
 
-    mpz_clear (s2);
-    mpz_clear (s1);
+    mpz_clear (s);
     mpz_clear (p);
     mpz_clear (g);
     mpz_clear (y);
-    mpz_clear (x);
     mpz_clear (B);
     mpz_clear (A);
 }

@@ -38,6 +38,45 @@
       global _encryptx
     %endif
     
+struc cpx_pushad_t
+  _edi resd 1
+  _esi resd 1
+  _ebp resd 1
+  _esp resd 1
+  _ebx resd 1
+  _edx resd 1
+  _ecx resd 1
+  _eax resd 1
+  .size:
+endstruc
+    
+struc cpx_epoll_event
+  events resd 1
+  data   resd 1
+endstruc
+
+struc cpx_crypto_ctx
+  ctr  resb  8     ; 64-bit counter + nonce
+  ekey resb 16     ; 128-bit encryption key
+  mkey resb 32     ; 256-bit mac key
+endstruc
+    
+%ifndef BUFSIZ
+%define BUFSIZ 128
+%endif
+    
+struc cpx_sc_prop
+  p_in  resd 2
+  p_out resd 2
+  pid   resd 1
+  s     resd 1  
+  efd   resd 1  
+  evts  resb cpx_epoll_event_size
+  len   resd 1
+  buf   resb BUFSIZ
+  ctx   resb cpx_crypto_ctx_size
+endstruc
+    
 %define SPECK_RNDS    27
 %define N              8
 %define K             16  
