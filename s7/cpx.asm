@@ -188,20 +188,11 @@ _encrypt:
       push    -1
       pop     eax            ; set return value to -1
       pushad
-      lea     ebx, [ebp+buf]
-      mov     edx, [ebp+len]
+      lea     ebp, [ebp+ctx] ; ebp crypto ctx
+      lea     ebx, [ebp+buf] ; ebx = msg
+      mov     edx, [ebp+len] ; edx = msglen
       setnc   cl
-      movzx   ecx, cl
-      
-      ;lea     esi, [esp+32+4]
-      ;lodsd
-      ;xchg    eax, ebp       ; ebp = ctx
-      ;lodsd
-      ;xchg    eax, ebx       ; ebx = msg
-      ;lodsd
-      ;xchg    eax, edx       ; edx = msglen 
-      ;lodsd
-      ;xchg    eax, ecx       ; ecx = enc  
+      movzx   ecx, cl        ; ecx = enc
       
       pushad                 ; allocate 8-bytes for tag+strm
       mov     edi, esp       ; edi = tag

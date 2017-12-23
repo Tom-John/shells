@@ -48,8 +48,8 @@ void speck64_encrypt(
     void *in)
 {
     uint32_t i, t, k0, k1, k2, k3, x0, x1;
-    bc_blk   *x=(bc_blk*)in;
-    bc_blk   *k=(bc_blk*)key;
+    w64_t   *x=(w64_t*)in;
+    w128_t  *k=(w128_t*)key;
     
     // copy 128-bit key to local registers
     k0 = k->w[0]; k1 = k->w[1];

