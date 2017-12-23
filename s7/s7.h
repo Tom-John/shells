@@ -55,6 +55,7 @@ void xstrerror (char*, ...);
 char *addr2ip (args_t*);
 void usage (void);
 void server (args_t*);
+void client (args_t*);
 
 #ifdef WIN
 DWORD wait_evt (HANDLE*, DWORD, DWORD, SOCKET);
