@@ -537,7 +537,7 @@ key_xchg:
       popad
       mov    byte[esp], 2 ; set g
       
-      ; generate 512-bits x
+      ; generate 512-bit x
       mov    dh, 1
       call   random
       
@@ -545,10 +545,10 @@ key_xchg:
       call   modexp
       
       ; send A to Bob
-      call   send_pkt
+      call   spp_send
       
       ; receive B from Bob
-      call   recv_pkt
+      call   spp_recv
       
       ; Alice computes s = B ^ x mod p
       call   modexp

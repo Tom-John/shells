@@ -66,8 +66,10 @@ void key_xchg (spp_ctx *c)
     mpz_powm (B, g, y, p);
 
     // now wait for Alice to connect
+    spp_recv();
     
     // send B to Alice
+    spp_send();
     
     // Bob computes session key
     mpz_powm (s, A, y, p);     
