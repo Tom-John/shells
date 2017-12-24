@@ -272,8 +272,8 @@ poll_wait:
       ; epoll_wait(efd, &evts, 1, -1);
       mov    ebx, [ebp+efd]
       xor    eax, eax
-      cdq
-      inc    edx
+      cdq                      ; edx = 0
+      inc    edx               ; edx = 1 event 
       mov    ah, 1             ; eax = SYS_epoll_wait
       mov    ecx, edi          ; ecx = evts
       or     esi, -1           ; no timeout
