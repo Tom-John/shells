@@ -52,53 +52,36 @@
 ;
 random:
 _random:
-      pushad    
-      xor    esi, esi          ; u = 0    
+      pushad        
       ; fd = open("/dev/urandom", O_RDONLY);
       push   SYS_open
       pop    eax
       call   open_rnd
       db     "/dev/urandom", 0
 open_rnd:    
-      pop    ebx
-      xor    ecx, ecx          ; ecx = O_RDONLY  
-      mov    edx, 0xFFF
+      pop    ebx             ; ebx = filename
+      xor    ecx, ecx        ; ecx = flags = O_RDONLY
       int    0x80
       test   eax, eax
-      ; if (fd < 0) goto exit_rnd;
-      jl     exit_rnd
-      
-      xchg   eax, ebx          ; ebx = fd    
-      ; for (u=0; u<outlen;)
-      ; esi already set to zero
-read_rnd:
-      ; if (u >= outlen) goto close_rnd;
-      cmp    esi, [esp+_edx]
-      jae    close_rnd
-      
-      ; len = read(fd, out + u, outlen - u);
+      jl     exit_rnd      
+      xchg   eax, ebx        ; ebx = fd
+      mov    ecx, edi        ; ecx = out      
+read_rnd:      
+      ; len = read(fd, out, outlen);
       push   SYS_read
-      pop    eax
-      mov    ecx, [esp+_edi]   ; ecx = out + u
-      add    ecx, esi          ; 
-      mov    edx, [esp+_edx]   ; edx = outlen - u   
-      sub    edx, esi          ; 
+      pop    eax       
       int    0x80
       test   eax, eax
-      ; if (len < 0) break;
-      jl     close_rnd
-upd_len:    
-      ; u += len
-      add    esi, eax
-      jmp    read_rnd    
+      jl     close_rnd          
+      add    ecx, eax        ; out += len      
+      sub    edx, eax        ; outlen -= len
+      jne    read_rnd      
 close_rnd:
       ; close(fd);
       push   SYS_close
       pop    eax
       int    0x80
-exit_rnd:
-      ; return u == outlen
-      cmp    esi, [esp+_edx]      
+exit_rnd:      
       popad
       ret
     

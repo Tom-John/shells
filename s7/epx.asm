@@ -451,17 +451,17 @@ send_pkt:
 spp_send:
       pushad      
       ; 1. send length (including MAC)
-      sub    esp, 4 + 8      ; 4 byte length + mac
+      pushad
+      pushad
       mov    edi, esp
       mov    dword[edi], edx ; store length of outgoing data
       add    dword[edi], 8
-      mov    dl, 4           ; send 4 bytes
+      mov    dl, 4       ; send 4 bytes, assumes BUFSIZ < 256
       call   send_pkt
-      lea    esp, [esp+4+8]  ; release stack
-      mov    edx, [esp+_edx]
+      popad
+      popad  
       jle    exit_send      
       ; 2. send the data
-      lea    edi, [ebp+evts]
       call   send_pkt      
 exit_send:    
       popad
