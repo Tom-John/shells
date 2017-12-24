@@ -64,18 +64,19 @@ open_rnd:
       xor    ecx, ecx          ; ecx = O_RDONLY  
       mov    edx, 0xFFF
       int    0x80
-      ; if (fd >= 0)
-      jl     exit_rnd          ; failed if fd < 0
+      test   eax, eax
+      ; if (fd < 0) goto exit_rnd;
+      jl     exit_rnd
       
       xchg   eax, ebx          ; ebx = fd    
       ; for (u=0; u<outlen;)
       ; esi already set to zero
 read_rnd:
-      ; u < outlen
+      ; if (u >= outlen) goto close_rnd;
       cmp    esi, [esp+_edx]
       jae    close_rnd
       
-      ; len = read(fd, p + u, outlen - u);
+      ; len = read(fd, out + u, outlen - u);
       push   SYS_read
       pop    eax
       mov    ecx, [esp+_edi]   ; ecx = out + u
@@ -83,6 +84,7 @@ read_rnd:
       mov    edx, [esp+_edx]   ; edx = outlen - u   
       sub    edx, esi          ; 
       int    0x80
+      test   eax, eax
       ; if (len < 0) break;
       jl     close_rnd
 upd_len:    
@@ -90,14 +92,13 @@ upd_len:
       add    esi, eax
       jmp    read_rnd    
 close_rnd:
-      pushfd                   ; save flags
       ; close(fd);
       push   SYS_close
       pop    eax
       int    0x80
-      popfd                    ; restore flags
 exit_rnd:
-      ; return u == outlen   
+      ; return u == outlen
+      cmp    esi, [esp+_edx]      
       popad
       ret
     

