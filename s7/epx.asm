@@ -450,8 +450,7 @@ spp_send:
       call   send_pkt
       lea    esp, [esp+4+8]  ; release stack
       mov    edx, [esp+_edx]
-      jle    exit_send
-      
+      jle    exit_send      
       ; 2. send the data
       lea    edi, [ebp+evts]
       call   send_pkt      
@@ -465,6 +464,12 @@ exit_send:
 ; buflen in edx
 ; buf in edi
 ; ctx in ebp
+;
+; socket_io will return sum of bytes received
+; encrypt will return decrypted bytes or -1
+;
+; the test will set flags accordingly
+; a JLE is for an error
 ; ***********************************
 recv_pkt:
       pushad     
@@ -472,8 +477,7 @@ recv_pkt:
       push   SYS_RECV
       pop    ebx
       call   socket_io
-      jle    exit_rpkt
-      
+      jle    exit_rpkt      
       ; 2. unwrap
       push   1
       pop    ecx              ; ecx = DECRYPT
@@ -490,13 +494,11 @@ exit_rpkt:
 ; ***********************************      
 spp_recv:
       pushad
-
       ; 1. receive the length (which includes a MAC)
       push   4 + 8             ; sizeof(uint32_t) + SPP_MAC_LEN
       pop    edx
       call   recv_pkt
-      jle    exit_recv
-      
+      jle    exit_recv      
       ; 2. receive the data
       mov    edx, [edi]        ; edx = buflen      
       call   recv_pkt
