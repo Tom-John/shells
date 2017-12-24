@@ -369,10 +369,17 @@ cls_efd:
       mov    ebx, [ebp+p_in+4]
       int    0x80   
 
+    %ifndef BIN
       ; exit(0);
       push   SYS_exit
       pop    eax 
-      int    0x80     
+      int    0x80
+    %else
+      mov    cl, sc_prop_size + (4 * 8)
+      add    esp, ecx
+      popad
+      ret
+    %endif      
       
 ; ***********************************
 ;
