@@ -250,8 +250,7 @@ epx_con:
       stosd                    ; save efd
       
       xchg   eax, ebx          ; ebx = efd
-      mov    edx, [ebp+s] 
-      clc      
+      mov    edx, [ebp+s]       
 poll_init:
       ; epoll_ctl(efd, EPOLL_CTL_ADD, i==0 ? s : out[0], &evts);
       mov    esi, edi
@@ -327,13 +326,11 @@ cls_sck:
       pop    ecx
       int    0x80
 
-      clc
+      xor    esi, esi
       mov    edx, ebx ; fd = s
 cls_efd:   
       ; epoll_ctl(efd, EPOLL_CTL_DEL, fd, NULL);
-      push   0
-      pop    eax
-      mov    esi, eax
+      mov    eax, esi
       mov    al, SYS_epoll_ctl
       mov    ebx, [ebp+efd]
       push   EPOLL_CTL_DEL
@@ -384,18 +381,14 @@ cls_efd:
 ; buflen in edx
 ; buf in edi
 ; ctx in ebp
-; ***********************************
-send_pkt:
+; sock op in ebx : SYS_RECV or SYS_SEND
+; ***********************************      
+sock_io:
       pushad
-      ; 1. wrap
-      xor    ecx, ecx         ; ecx = ENCRYPT
-      call   encrypt
-      xchg   eax, edx      
-      ; 2. send
       xor    esi, esi         ; sum = 0
-s_pkt:
+io_loop:
       cmp    esi, edx         ; sum<buflen
-      jae    exit_spkt
+      jae    exit_io
       
       xor    eax, eax
       push   eax              ; flags = 0
@@ -405,23 +398,41 @@ s_pkt:
       lea    ecx, [esi+edi] 
       push   ecx              ; buf   = &buf[sum]
       push   dword[ebp+s]     ; socket
-      mov    ecx, esp         ; ecx   = &args
-      
-      push   SYS_SEND
-      pop    ebx
+      mov    ecx, esp         ; ecx   = &args      
       mov    al, SYS_socketcall      
       int    0x80
       
       add    esp, 4*4         ; fix-up stack
       
       test   eax, eax         ; if (len <= 0) return -1; 
-      jle    exit_spkt
+      jle    exit_io
       
       add    esi, eax         ; sum += len
-      jmp    s_pkt
-exit_spkt:
+      jmp    io_loop
+exit_io:
       test   esi, esi
-      mov    [esp+_eax], esi  ; return sum    
+      mov    [esp+_eax], esi  ; return sum          
+      popad
+      ret      
+; ***********************************
+;
+; send packet, fragmented if required
+;
+; buflen in edx
+; buf in edi
+; ctx in ebp
+; ***********************************
+send_pkt:
+      pushad
+      ; 1. wrap
+      xor    ecx, ecx         ; ecx = ENCRYPT
+      call   encrypt
+      xchg   eax, edx      
+      ; 2. send
+      push   SYS_SEND
+      pop    ebx
+      call   sock_io
+      mov    [esp+_eax], eax  ; return sum    
       popad
       ret
 ; ***********************************
@@ -430,7 +441,7 @@ exit_spkt:
 ;
 ; ***********************************      
 spp_send:
-      pushad
+      pushad      
       ; 1. send length (including MAC)
       sub    esp, 4 + 8
       mov    edi, esp
@@ -461,34 +472,9 @@ exit_send:
 recv_pkt:
       pushad     
       ; 1. receive
-      xor    esi, esi         ; sum = 0
-r_pkt:
-      cmp    esi, edx         ; sum<buflen
-      jae    dec_pkt
-      
-      xor    eax, eax
-      push   eax              ; flags = 0
-      mov    ecx, edx
-      sub    ecx, esi
-      push   ecx              ; len   = buflen - sum
-      lea    ecx, [esi+edi] 
-      push   ecx              ; buf   = &buf[sum]
-      push   dword[ebp+s]     ; socket      
-      mov    ecx, esp         ; ecx   = &args
-      
       push   SYS_RECV
       pop    ebx
-      mov    al, SYS_socketcall      
-      int    0x80
-      
-      add    esp, 4*4         ; fix-up stack
-      
-      test   eax, eax         ; if (len <= 0) return -1; 
-      jle    exit_rpkt
-      
-      add    esi, eax         ; sum += len
-      jmp    r_pkt
-dec_pkt:      
+      call   sock_io    
       ; 2. unwrap
       push   1
       pop    ecx              ; ecx = DECRYPT

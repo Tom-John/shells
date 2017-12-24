@@ -45,18 +45,6 @@
 
 %define EINTR                 4
 
-struc xpushad_t
-  _edi resd 1
-  _esi resd 1
-  _ebp resd 1
-  _esp resd 1
-  _ebx resd 1
-  _edx resd 1
-  _ecx resd 1
-  _eax resd 1
-  .size:
-endstruc
-
 ; void random(void *out, size_t outlen);
 ;
 ; IN:  edi = out, edx = outlen 
