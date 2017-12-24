@@ -56,7 +56,7 @@ void main(int argc, char *argv[])
     pipe(in);
     pipe(out);
 
-    // execute /bin/sh as child process
+    // execute child process
     pid = fork();
     
     if (pid==0) 
