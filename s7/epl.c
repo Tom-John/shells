@@ -56,9 +56,10 @@ void main(int argc, char *argv[])
     pipe(in);
     pipe(out);
 
-    // execute child process
+    // new process
     pid = fork();
     
+    // is this child process?
     if (pid==0) 
     {
       // assign read end to stdin

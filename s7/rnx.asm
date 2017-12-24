@@ -66,6 +66,7 @@ open_rnd:
       int    0x80
       ; if (fd >= 0)
       jl     exit_rnd          ; failed if fd < 0
+      
       xchg   eax, ebx          ; ebx = fd    
       ; for (u=0; u<outlen;)
       ; esi already set to zero
@@ -73,6 +74,7 @@ read_rnd:
       ; u < outlen
       cmp    esi, [esp+_edx]
       jae    close_rnd
+      
       ; len = read(fd, p + u, outlen - u);
       push   SYS_read
       pop    eax
