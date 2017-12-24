@@ -48,36 +48,64 @@ char OAKLEY_PRIME_MODP2048[]=
     "DE2BCBF6955817183995497CEA956AE515D2261898FA0510"
     "15728E5A8AACAA68FFFFFFFFFFFFFFFF";
     
-void key_xchg (spp_ctx *c)
+int key_xchg (spp_ctx *c)
 {
-    mpz_t p, g, y, A, B, s;
-    
-    mpz_init(p);  mpz_init(g); 
-    mpz_init(A);  mpz_init(B);
-    mpz_init(y);  mpz_init(s);
+      mpz_t   p, g, y, A, B, s;
+      spp_buf A_pkt, B_pkt, s_key;
+      int     r;
+      uint8_t *x;
+      
+      mpz_init(p);  mpz_init(g); 
+      mpz_init(A);  mpz_init(B);
+      mpz_init(y);  mpz_init(s);
 
-    mpz_set_str (p, OAKLEY_PRIME_MODP2048, 16);
-    mpz_set_str (g, "2", 16);
-    
-    // generate random 512-bit integer
-    mpz_urandomb(y, state, 64);  
-    
-    // Bob obtains B = g ^ y mod p
-    mpz_powm (B, g, y, p);
+      mpz_set_str (p, OAKLEY_PRIME_MODP2048, 16);
+      mpz_set_str (g, "2", 16);
 
-    // now wait for Alice to connect
-    spp_recv();
-    
-    // send B to Alice
-    spp_send();
-    
-    // Bob computes session key
-    mpz_powm (s, A, y, p);     
+      // generate random 512-bit integer
+      mpz_urandomb(y, state, 64);  
 
-    mpz_clear (s);
-    mpz_clear (p);
-    mpz_clear (g);
-    mpz_clear (y);
-    mpz_clear (B);
-    mpz_clear (A);
+      // receive A from Alice
+      r = spp_recv(c, &A_pkt);
+      if (r != SPP_ERR_OK) return 0;
+
+      // import A
+      mpz_import(A, A_pkt.len.w, );
+
+      // ***************************
+      // Bob obtains B = g ^ y mod p
+      mpz_powm (B, g, y, p);
+
+      // export B
+      mpz_export(B_pkt.data.b, 
+          (size_t*)&B_pkt.len.w, -1, 1, 0, 0, B);
+
+      // send B to Alice
+      if (spp_send(c, &B_pkt) != SPP_ERR_OK) return 0;   
+
+       // Bob computes session key: s = A ^ y mod p 
+      mpz_powm (s, A, y, p);  
+
+      // export session key
+      mpz_export(s_key.data.b, NULL, -1, 1, 0, 0, s);
+      
+      // set the counter to zero
+      memset(c->cc.e_ctr, 0, SPP_CTR_LEN);
+      
+      // set the encryption key
+      x = s_key.data.b;
+      memcpy(c->cc.e_key, x, SPP_EKEY_LEN);
+      
+      x += SPP_EKEY_LEN;      
+      // set the mac key
+      memcpy(c->cc.m_key, x, SPP_MKEY_LEN);
+      
+      mpz_clear (s);
+      mpz_clear (p);
+      mpz_clear (g);
+      mpz_clear (y);
+      mpz_clear (B);
+      mpz_clear (A);
+
+      return 1;
 }

@@ -225,7 +225,8 @@ opn_con:
       stosd                    ; save socket
 
       push   0x0100007f  ; sa.sin_addr=127.0.0.1
-      push   0xD2040002  ; sa.sin_port=htons(1234), sa.sin_family=AF_INET
+      push   0xD2040002  ; sa.sin_port=htons(1234)
+                         ; sa.sin_family=AF_INET
       mov    ecx, esp    ; ecx = &sa
       
       ; connect (s, &sa, sizeof(sa));    
@@ -241,7 +242,8 @@ epx_con:
       int    0x80      
 
       ; attempt to secure the connection
-      ; call   key_xchg
+      call   key_xchg
+      jle    cls_sck  
       
       ; efd = epoll_create1(0);
       mov    eax, SYS_epoll_create1
@@ -518,36 +520,68 @@ exit_recv:
 ; perform key exchange
 ;
 ; *****************************************
+%define mx_base esi ; base
+%define mx_exp  ebx ; exponent
+%define mx_res  edi ; result
+
+%define x _edi
+%define g _esi
+%define s _esi
+%define A _eax
+%define B _eax
+
 key_xchg:
+int3
       pushad      
-      xor    ecx, ecx
-      mul    ecx
-      mov    ch, 2        ; 512 bytes should be enough
-      sub    esp, ecx
-      mov    edi, esp
+      xor    ecx, ecx     ; ecx = 0
+      mul    ecx          ; eax = 0, edx = 0      
+      mov    ch, 5        ; ecx = 1024+256
+      sub    esp, ecx     ; allocate 1024 bytes
+      mov    edi, esp     ; initialize to zero
       pushad
       rep    stosb
       popad
-      mov    byte[esp], 2 ; set g
+      mov    ch, 1          ; ecx = 256
       
-      ; generate 512-bit x
-      mov    dh, 1
+      mov    esi, esp       ; esi = s and g
+      lea    edi, [esi+ecx] ; edi = x
+      lea    eax, [edi+ecx] ; eax = A and B
+
+      pushad
+      ; generate 512-bit x in edi
+      mov    dh, 2    
       call   random
       
-      ; Alice obtains A = g ^ x mod p 
+      ; Alice obtains A = g ^ x mod p
+      mov    mx_res, [esp+A]
+      mov    mx_exp, [esp+x]
+      mov    mx_base,[esp+g]
+      mov    byte[mx_base], 2      
       call   modexp
       
       ; send A to Bob
       call   spp_send
       
-      ; receive B from Bob
+      ; receive B from Bob      
       call   spp_recv
       
-      ; Alice computes s = B ^ x mod p
+      ; Alice computes key: s = B ^ x mod p
+      mov    mx_base, edi    ; set base B
+      mov    mx_res, [esp+s] ; set result buffer
+      mov    mx_exp, [esp+x] ; set exponent
       call   modexp
+      popad
+      
+      ; reset the counter, set the encryption + mac keys
+      xor    eax, eax
+      mov    cl, crypto_ctx_size - 8
+      lea    edi, [ebp+ctx]
+      stosd                   ; set counter to zero
+      stosd
+      rep    movsb            ; set encryption + mac keys
       
       ; release stack
-      mov    ch, 2
+      mov    ch, 5
       add    esp, ecx
       popad
       ret
