@@ -36,6 +36,14 @@
 %define SPP_ENCRYPT   0
 %define SPP_DECRYPT   1
 
+struc crypto_ctx
+  ctr  resb  8     ; 64-bit counter + nonce
+  ekey resb 16     ; 128-bit encryption key
+  mkey resb 32     ; 256-bit mac key
+endstruc
+
+%ifndef WIN
+
 %define SYS_exit           0x001
 %define SYS_fork           0x002 
 %define SYS_read           0x003
@@ -91,13 +99,7 @@ struc epoll_event
   events resd 1
   data   resd 1
 endstruc
-
-struc crypto_ctx
-  ctr  resb  8     ; 64-bit counter + nonce
-  ekey resb 16     ; 128-bit encryption key
-  mkey resb 32     ; 256-bit mac key
-endstruc
-         
+        
 struc sc_prop
   p_in  resd 2     ; pipe for stdin of shell
   p_out resd 2     ; pipe for stdout/stderr of shell
@@ -110,7 +112,111 @@ struc sc_prop
   mac   resb 8     ; for mac
   ctx   resb crypto_ctx_size
 endstruc
- 
+
+%else
+  %define FD_MAX_EVENTS 10
+  %define FD_CLOSE      16
+  %define BUFSIZ        64
+  
+  struc SECURITY_ATTRIBUTES
+    nLength              resd 1
+    lpSecurityDescriptor resd 1
+    bInheritHandle       resd 1
+  endstruc
+  
+  struc WSANETWORKEVENTS
+    lNetworkEvents resd 1
+    iErrorCode     resd FD_MAX_EVENTS
+  endstruc
+  
+  struc OVERLAPPED
+    Internal     resd 1
+    InternalHigh resd 1
+    Pointer      resd 1
+    Offset       equ Pointer
+    OffsetHigh   equ Pointer
+    hEvent       resd 1    
+  endstruc
+  
+  struc PROCESS_INFORMATION
+    hProcess    resd 1
+    hThread     resd 1
+    dwProcessId resd 1
+    dwThreadId  resd 1
+  endstruc
+  
+  struc STARTUPINFO
+    cb              resd 1
+    lpReserved      resd 1
+    lpDesktop       resd 1
+    lpTitle         resd 1
+    dwX             resd 1
+    dwY             resd 1
+    dwXSize         resd 1
+    dwYSize         resd 1
+    dwXCountChars   resd 1
+    dwYCountChars   resd 1
+    dwFillAttribute resd 1
+    dwFlags         resd 1
+    wShowWindow     resw 1
+    cbReserved2     resw 1
+    lpReserved2     resd 1
+    hStdInput       resd 1
+    hStdOutput      resd 1
+    hStdError       resd 1
+  endstruc
+  
+  ; data structure
+  struc ds_tbl
+    @ne      resb WSANETWORKEVENTS_size
+    @p       resd 1
+    @lap     resb OVERLAPPED_size
+    @s       resd 1
+    @out1    resd 1
+    @in0     resd 1
+    @in1     resd 1
+    @out0    resd 1
+    @evt0    resd 1
+    @evt1    resd 1
+    @si      resb STARTUPINFO_size
+    @pi      equ @si    
+    @len     resd 1
+    @buf     resb BUFSIZ+SPP_MAC_LEN
+    @ctx     resb crypto_ctx_size
+  endstruc
+  
+  ; code structure
+  struc cs_tbl
+    ; kernel32
+    @TerminateProcess       resd 1
+    @CreateProcess          resd 1
+    @CreateEvent            resd 1
+    @WaitForMultipleObjects resd 1
+    @CloseHandle            resd 1
+    @WriteFile              resd 1
+    @ReadFile               resd 1
+    @GetOverlappedResult    resd 1
+    @CreateFile             resd 1
+    @CreatePipe             resd 1
+    @CreateNamedPipe        resd 1
+    
+    ; ws2_32 
+    @socket                 resd 1
+    @connect                resd 1
+    @send                   resd 1
+    @recv                   resd 1
+    @closesocket            resd 1
+    @WSAEventSelect         resd 1  
+    @WSACreateEvent         resd 1
+    @WSAEnumNetworkEvents   resd 1 
+    @ioctlsocket            resd 1
+  endstruc  
+  
+  %macro xcall 1.nolist
+    call dword[ebp-%1]
+  %endmacro
+%endif
+  
 struc pushad_t
   _edi resd 1
   _esi resd 1

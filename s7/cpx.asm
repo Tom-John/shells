@@ -185,7 +185,7 @@ _encrypt:
       push    -1
       pop     eax            ; set return value to -1
       pushad
-      lea     ebp, [ebp+ctx] ; ebp crypto ctx
+      lea     ebp, [ebp+@ctx] ; ebp crypto ctx
       mov     ebx, edi       ; ebx = msg      
       pushad                 ; allocate 8-bytes for tag+strm
       mov     edi, esp       ; edi = tag
