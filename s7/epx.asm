@@ -45,7 +45,7 @@ _main:
       sub    esp, ecx
       mov    ebp, esp
       
-      ; initialize static keys
+      ; initialize encryption keys
       call   init_keys
       %include "static_key.inc"
 init_keys:      
@@ -270,7 +270,7 @@ cls_sck:
       pop    ecx
       int    0x80
 
-      xor    esi, esi
+      xor    esi, esi ; sets CF=0
       mov    edx, ebx ; fd = s
 cls_efd:   
       ; epoll_ctl(efd, EPOLL_CTL_DEL, fd, NULL);

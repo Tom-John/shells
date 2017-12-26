@@ -100,48 +100,53 @@ int random(void *out, size_t outlen)
 
 void print_array(FILE *out, char *desc, void *buf, int len, int fmt)
 {
-  int i;
-  uint8_t *array=buf;
+    int i;
+    uint8_t *array=buf;
 
-  fprintf (out, 
-    fmt==C_FMT ? "uint8_t %s[]={" : "%s:", 
-    desc);
-  
-  for (i=0; i<len; i++) {
-    if ((i & 7)==0) {
-      fprintf(out, "\n    ");
-      if (fmt==ASM_FMT) fprintf(out, "db ");
+    fprintf (out, 
+      fmt==C_FMT ? "uint8_t %s[]={" : "%s:", 
+      desc);
+    
+    for (i=0; i<len; i++) {
+      if ((i & 7)==0) {
+        fprintf(out, "\n    ");
+        if (fmt==ASM_FMT) fprintf(out, "db ");
+      }
+      fprintf (out, "0x%02x", array[i]);
+      if ((i+1) != len) fprintf(out, ", ");
     }
-    fprintf (out, "0x%02x", array[i]);
-    if ((i+1) != len) fprintf(out, ", ");
-  }
-  fprintf (out, 
-    fmt==C_FMT ? " };\n" : "\n");  
+    fprintf (out, 
+      fmt==C_FMT ? " };\n" : "\n");  
 }
 
 void cc2file(crypto_ctx *cc, char *out, int fmt) {
-  FILE *fd;
-  
-  fd=fopen(out, "wb");
-  
-  if (fd!=NULL) {
-    fprintf(fd, fmt==C_FMT ? "// " : "; ");
-    fprintf(fd, "AUTO GENERATED. DO NOT EDIT\n");
-    print_array(fd, "e_ctr", cc->e_ctr, BLOCK_LENGTH,        fmt);  
-    print_array(fd, "e_key", cc->e_key, BC_KEY_LENGTH,       fmt);  
-    print_array(fd, "m_key", cc->m_key, LIGHTMAC_KEY_LENGTH, fmt);  
-    fclose(fd);
-  }
+    FILE *fd;
+    
+    fd=fopen(out, "wb");
+    
+    if (fd!=NULL) {
+      printf("Saving keys to %s\n", out);
+      
+      fprintf(fd, fmt==C_FMT ? "// " : "; ");
+      fprintf(fd, "AUTO GENERATED. DO NOT EDIT\n");
+      
+      print_array(fd, "e_ctr", cc->e_ctr, BLOCK_LENGTH,        fmt);  
+      print_array(fd, "e_key", cc->e_key, BC_KEY_LENGTH,       fmt);  
+      print_array(fd, "m_key", cc->m_key, LIGHTMAC_KEY_LENGTH, fmt);  
+      
+      fclose(fd);
+    }
 }
 
 int main(int argc, char *argv[]) {
   
-  crypto_ctx cc;
-  
-  random(&cc, sizeof(cc)); 
-  
-  cc2file(&cc, "static_key.inc", ASM_FMT);
-  cc2file(&cc, "static_key.h",   C_FMT);
+    crypto_ctx cc;
+    
+    // generate some random bytes
+    random(&cc, sizeof(cc)); 
+    
+    cc2file(&cc, "static_key.inc", ASM_FMT);
+    cc2file(&cc, "static_key.h",   C_FMT);
   
   return 0;
 }
