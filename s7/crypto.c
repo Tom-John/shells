@@ -43,9 +43,7 @@ void bin2hex(
 }
 #endif
 
-void speck64_encrypt(
-    const void *key,
-    void *in)
+void speck64_encrypt(const void *key, void *in)
 {
     uint32_t i, t, k0, k1, k2, k3, x0, x1;
     w64_t   *x=(w64_t*)in;

