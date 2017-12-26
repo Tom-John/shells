@@ -65,13 +65,6 @@ int key_xchg (spp_ctx *c)
       // generate random 512-bit integer
       mpz_urandomb(y, state, 64);  
 
-      // receive A from Alice
-      r = spp_recv(c, &A_pkt);
-      if (r != SPP_ERR_OK) return 0;
-
-      // import A
-      mpz_import(A, A_pkt.len.w, );
-
       // ***************************
       // Bob obtains B = g ^ y mod p
       mpz_powm (B, g, y, p);
@@ -83,6 +76,13 @@ int key_xchg (spp_ctx *c)
       // send B to Alice
       if (spp_send(c, &B_pkt) != SPP_ERR_OK) return 0;   
 
+      // receive A from Alice
+      r = spp_recv(c, &A_pkt);
+      if (r != SPP_ERR_OK) return 0;
+
+      // import A
+      mpz_import(A, A_pkt.len.w, );
+      
        // Bob computes session key: s = A ^ y mod p 
       mpz_powm (s, A, y, p);  
 
