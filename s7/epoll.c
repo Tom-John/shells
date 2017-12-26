@@ -69,7 +69,14 @@ void main(int argc, char *argv[])
     p_tbl              p;
     
     memset(&p, 0, sizeof(p));
+    
+    #include "static_key.h"
 
+    // initialize keys
+    memcpy(p.c.cc.e_ctr, e_ctr, SPP_CTR_LEN); 
+    memcpy(p.c.cc.e_key, e_key, SPP_EKEY_LEN); 
+    memcpy(p.c.cc.m_key, m_key, SPP_MKEY_LEN);
+    
     // create pipes for redirection of stdin/stdout/stderr
     syscall(SYS_pipe,  p.in);
     syscall(SYS_pipe, p.out);

@@ -43,14 +43,17 @@ _main:
       xor    ecx, ecx
       mov    cl, sc_prop_size
       sub    esp, ecx
-      mov    edi, esp
-      
-      ; memset(edi, 0, sc_prop_size)
-      pushad
-      xor    eax, eax
-      rep    stosb
-      popad
       mov    ebp, esp
+      
+      ; initialize static keys
+      call   init_keys
+      %include "static_key.inc"
+init_keys:      
+      pop    esi
+      mov    cl, ctx
+      lea    edi, [esp+ecx]
+      mov    cl, SPP_CTR_LEN+SPP_EKEY_LEN+SPP_MKEY_LEN
+      rep    movsb
       
       ; create read/write pipes
       mov    cl, 2
